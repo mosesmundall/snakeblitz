@@ -18,9 +18,9 @@ export const server = defineServer({
         callback(new Error("Origin not allowed"));
       },
     }));
-    app.use((_req, res, next) => { res.setHeader("Cache-Control", "no-store"); next(); });
-    app.get("/", (_req, res) => res.json({ ok: true, game: "Snake Blitz", version: "release-candidate" }));
-    app.get("/health", (_req, res) => res.json({ ok: true }));
-    app.get("/api/leaderboard", (_req, res) => res.json({ entries: leaderboardStore.getTop10() }));
+    app.use((_req: any, res: any, next: any) => { res.setHeader("Cache-Control", "no-store"); next(); });
+    app.get("/", (_req: any, res: any) => res.json({ ok: true, game: "Snake Blitz", version: "release-candidate" }));
+    app.get("/health", (_req: any, res: any) => res.json({ ok: true }));
+    app.get("/api/leaderboard", (_req: any, res: any) => res.json({ entries: leaderboardStore.getTop10() }));
   },
 });
