@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#07110d" />
+  <title>Snake Blitz — Two-Player Co-op Survival</title>
+</head>
+<body>
+<main id="app">
+  <section id="lobby" class="panel lobby-panel">
+    <div class="eyebrow">TWO-PLAYER CO-OP SURVIVAL</div>
+    <h1>SNAKE <span>BLITZ</span></h1>
+    <p class="tagline">One tank. Two jobs. Swap every wave. Blitz the horde before your cash multiplier collapses.</p>
+
+    <div class="mode-switch" role="tablist">
+      <button id="mode-online" class="mode-option active">ONLINE • ROOM CODE</button>
+      <button id="mode-local" class="mode-option">ONE DEVICE • LOCAL CO-OP</button>
+    </div>
+
+    <div id="online-setup">
+      <label>Your name<input id="player-name" maxlength="18" placeholder="Player 1" autocomplete="nickname" /></label>
+      <div class="lobby-actions">
+        <button id="create-game" class="primary">Create online game</button>
+        <div class="divider"><span>OR JOIN YOUR PARTNER</span></div>
+        <div class="join-row"><input id="room-code" maxlength="4" placeholder="CODE" autocomplete="off" /><button id="join-game">Join game</button></div>
+      </div>
+    </div>
+
+    <div id="local-setup" class="hidden local-setup">
+      <div class="dual-name-row">
+        <label>Player 1<input id="local-name-1" maxlength="18" placeholder="Player 1" /></label>
+        <label>Player 2<input id="local-name-2" maxlength="18" placeholder="Player 2" /></label>
+      </div>
+      <button id="start-local" class="primary">Start local co-op</button>
+      <p class="local-help">Driver uses WASD / arrow keys. Gunner uses the mouse + left click. Roles still swap after every wave.</p>
+    </div>
+
+    <div class="audio-settings lobby-audio" aria-label="Audio settings">
+      <button class="audio-toggle music-toggle" type="button" aria-pressed="true">MUSIC • ON</button>
+      <button class="audio-toggle sfx-toggle" type="button" aria-pressed="true">SFX • ON</button>
+    </div>
+    <button id="open-leaderboard" class="leaderboard-home-button" type="button">🏆 VIEW LEADERBOARD</button>
+
+    <div class="phase-badge">SNAKE BLITZ • RELEASE CANDIDATE</div>
+    <p id="lobby-status" class="status">Choose online code play or one-device local co-op.</p>
+  </section>
+
+  <section id="game-shell" class="hidden">
+    <div id="game-root"></div>
+    <div id="hud-top" class="hud top-hud">
+      <div class="hud-card room-card"><span class="hud-label">ROOM</span><strong id="hud-room">----</strong></div>
+      <div class="hud-card center-card"><span id="hud-wave-type" class="wave-chip">NORMAL</span><div class="wave-stack"><strong id="hud-wave">WAVE 1</strong><span id="hud-enemies">0 LEFT</span></div><span id="hud-timer">READY</span></div>
+      <div class="hud-card economy-card"><div><span class="hud-label">SCORE</span><strong id="hud-score">0</strong></div><div><span class="hud-label">CASH</span><strong id="hud-cash">$0</strong></div></div>
+      <div class="hud-card multiplier-card"><span class="hud-label">BLITZ PAYOUT</span><strong id="hud-multiplier">10.0×</strong><div class="mult-track"><div id="hud-mult-fill"></div></div></div>
+      <div class="hud-card role-card"><span class="hud-label">YOUR ROLE</span><strong id="hud-role">WAITING</strong></div>
+    </div>
+
+    <div class="hud health-hud"><div class="health-title"><span>TANK INTEGRITY</span><strong id="hud-health-text">100 / 100</strong></div><div class="health-track"><div id="hud-health-fill" class="health-fill"></div></div></div>
+
+    <div id="boost-hud" class="hud boost-hud"><span class="hud-label">BOOST</span><strong id="boost-name">NONE</strong><span id="boost-count"></span><small>Right-click: cycle • Middle-click: use</small></div>
+    <div id="waiting-banner" class="center-banner">Waiting for player 2…</div>
+    <div id="event-banner" class="event-banner hidden"></div>
+
+    <div id="shop-overlay" class="shop-overlay hidden">
+      <section class="shop-panel">
+        <header class="shop-header"><div><div class="eyebrow">BETWEEN-WAVE ARMORY</div><h2>FIELD <span>UPGRADES</span></h2><p id="shop-subtitle"></p></div><div class="shop-meta"><div><span>TEAM CASH</span><strong id="shop-cash">$0</strong></div><div><span>NEXT WAVE</span><strong id="shop-timer">00:26</strong></div><div class="clear-multiplier-meta"><span>CLEAR MULTIPLIER</span><strong id="shop-clear-multiplier">1.00×</strong></div></div></header>
+        <div class="role-swap-strip"><div><span class="shop-mini-label">NEXT ROLES</span><strong id="shop-roles"></strong></div><div class="shop-stat-line" id="shop-build-summary"></div></div>
+        <div id="upgrade-grid" class="upgrade-grid"></div>
+        <div class="repair-card"><div><span class="upgrade-kicker">FIELD SERVICE</span><strong>Emergency Repair</strong><p id="repair-description"></p></div><button id="buy-repair" class="shop-buy">Repair</button></div>
+        <footer class="shop-footer"><div class="ready-status"><span id="ready-player-1" class="ready-pill"></span><span id="ready-player-2" class="ready-pill"></span></div><div class="shop-footer-actions"><span id="shop-message">Upgrades visibly evolve your tank as the run progresses.</span><button id="shop-ready" class="primary ready-button">READY</button></div></footer>
+      </section>
+    </div>
+
+    <div id="boss-wheel-overlay" class="boss-wheel-overlay hidden">
+      <section class="boss-wheel-card">
+        <div class="eyebrow">BOSS ELIMINATED</div><h2>BLITZ <span>REWARD</span></h2>
+        <div class="wheel-stage"><div id="reward-wheel" class="reward-wheel"><div>OVERDRIVE</div><div>MEDKIT</div><div>PHOENIX</div><div>BOMB</div><div>NUKE</div><div>CASH</div></div><div class="wheel-pointer">▼</div></div>
+        <h3 id="boss-reward-result">Spin for your boss reward</h3><p id="boss-reward-desc">The reward is stored in your boost inventory for later waves.</p>
+        <button id="spin-boss-reward" class="primary">SPIN REWARD</button><button id="continue-after-boss" class="hidden">CONTINUE TO ARMORY</button>
+      </section>
+    </div>
+
+    <div id="game-over" class="game-over hidden">
+      <div class="game-over-card">
+        <div class="eyebrow danger">TANK DESTROYED</div><h2>RUN OVER</h2>
+        <div class="results-grid"><div><span>Wave reached</span><strong id="result-wave">1</strong></div><div><span>Score</span><strong id="result-score">0</strong></div><div><span>Enemies destroyed</span><strong id="result-kills">0</strong></div><div><span>Headshots</span><strong id="result-headshots">0</strong></div><div><span>Cash recovered</span><strong id="result-cash">$0</strong></div></div>
+        <section class="gameover-leaderboard">
+          <div class="leaderboard-title-row"><div><span class="eyebrow">ALL-TIME</span><h3>TOP 10 TEAMS</h3></div><strong id="result-leaderboard-rank" class="rank-callout"></strong></div>
+          <div id="result-leaderboard" class="leaderboard-list compact"><div class="leaderboard-loading">Loading leaderboard…</div></div>
+        </section>
+        <div class="audio-settings gameover-audio" aria-label="Audio settings"><button class="audio-toggle music-toggle" type="button" aria-pressed="true">MUSIC • ON</button><button class="audio-toggle sfx-toggle" type="button" aria-pressed="true">SFX • ON</button></div>
+        <div class="gameover-actions"><button id="restart-game" class="primary">Run it again</button><button id="back-home" type="button">Back to homepage</button></div>
+      </div>
+    </div>
+    <div class="controls-hint hud"><span id="controls-text">Waiting for role assignment…</span></div>
+  </section>
+
+  <div id="leaderboard-overlay" class="leaderboard-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="leaderboard-title">
+    <section class="leaderboard-panel">
+      <header class="leaderboard-panel-header"><div><div class="eyebrow">SNAKE BLITZ • ALL-TIME</div><h2 id="leaderboard-title">LEADERBOARD</h2><p>Ranked by highest wave reached, then score.</p></div><button id="close-leaderboard" class="leaderboard-close" type="button" aria-label="Close leaderboard">×</button></header>
+      <div class="leaderboard-columns"><span>#</span><span>TEAM</span><span>WAVE</span><span>SCORE</span></div>
+      <div id="leaderboard-list" class="leaderboard-list"><div class="leaderboard-loading">Loading leaderboard…</div></div>
+      <button id="refresh-leaderboard" type="button">Refresh leaderboard</button>
+    </section>
+  </div>
+</main>
+<script type="module" src="/src/main.ts"></script>
+</body>
+</html>

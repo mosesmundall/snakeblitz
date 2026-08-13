@@ -1,0 +1,13 @@
+SNAKE TANK PHASE 1 -> PHASE 2 UPGRADE
+
+1. In BOTH running PowerShell windows, press Ctrl+C to stop the Phase 1 server/client.
+2. Open your existing project root. This is the folder that directly contains both `client` and `server`.
+3. Extract this ZIP.
+4. Copy ALL extracted files/folders into the existing project root.
+5. When Windows asks whether to merge folders / replace files, choose YES / REPLACE.
+6. No dependency changes were added, so your existing node_modules folders can stay exactly where they are.
+7. Open PowerShell in `server` and run: npm run dev
+8. Open PowerShell in `client` and run: npm run dev
+9. Open http://localhost:5173 and create/join a new room.
+
+If anything looks like the old Phase 1 build, hard-refresh Chrome with Ctrl+Shift+R.
