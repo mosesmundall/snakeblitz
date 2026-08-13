@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import "./style.css";
 import { GameScene } from "./game/GameScene";
 import "./game/phase2Client";
+import "./game/phase3Client";
 import { audio } from "./game/AudioManager";
 import { network } from "./network";
 import type { BoostType, GameSnapshot, LeaderboardEntry, UpgradeId, UpgradeSnapshot, WaveType } from "./types";
