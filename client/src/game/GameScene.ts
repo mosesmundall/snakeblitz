@@ -280,7 +280,7 @@ export class GameScene extends Phaser.Scene {
   private createMinimap() {
     const cx = 1460, cy = 205, radius = 108;
     this.minimap = this.add.graphics().setScrollFactor(0).setDepth(118);
-    this.minimapMaskShape = this.make.graphics({ x: 0, y: 0, add: false }).setScrollFactor(0);
+    this.minimapMaskShape = this.make.graphics({ x: 0, y: 0 }, false).setScrollFactor(0);
     this.minimapMaskShape.fillStyle(0xffffff, 1);
     this.minimapMaskShape.fillCircle(cx, cy, radius);
     this.minimap.setMask(this.minimapMaskShape.createGeometryMask());
@@ -411,7 +411,7 @@ export class GameScene extends Phaser.Scene {
   private createBlackoutLayer() {
     this.blackoutDim=this.add.rectangle(800,450,1600,900,0x000000,.18).setScrollFactor(0).setDepth(88).setVisible(false);
     this.blackoutOverlay=this.add.rectangle(1800,1050,3600,2100,0x010303,.94).setDepth(89).setVisible(false);
-    this.blackoutMaskShape=this.make.graphics({x:0,y:0,add:false});this.blackoutMaskShape.fillStyle(0xffffff,1);this.blackoutMaskShape.fillCircle(0,0,235);
+    this.blackoutMaskShape=this.make.graphics({x:0,y:0}, false);this.blackoutMaskShape.fillStyle(0xffffff,1);this.blackoutMaskShape.fillCircle(0,0,235);
     const mask=this.blackoutMaskShape.createGeometryMask();mask.invertAlpha=true;this.blackoutOverlay.setMask(mask);
     this.blackoutEdge=this.add.graphics().setDepth(90).setVisible(false);this.blackoutEdge.lineStyle(86,0x010303,.38);this.blackoutEdge.strokeCircle(0,0,273);this.blackoutEdge.lineStyle(4,0xb7c393,.04);this.blackoutEdge.strokeCircle(0,0,233);
   }
@@ -496,7 +496,7 @@ export class GameScene extends Phaser.Scene {
     const margin=12,headX=margin+len,width=Math.ceil(len+hr*2+margin*2+8),height=Math.ceil(Math.max(hr*2.2,br*3)+margin*2);
     const originX=headX/width;
     if(this.textures.exists(key))return{key,originX};
-    const g=this.make.graphics({x:0,y:0,add:false});const cy=height/2;
+    const g=this.make.graphics({x:0,y:0}, false);const cy=height/2;
     const bodyPalette=snake.variant==="BOMBER"?[0x6f362d,0x8a4534,0x9e523b]:snake.variant==="VENOM"?[0x2e5d50,0x397665,0x438675]:snake.variant==="CASH"?[0x75662f,0x91813b,0xa89142]:[0x365c32,0x3f6938,0x487442];
     // Integrated shadow and a slightly curved body preserve the organic silhouette without 12+ live objects per snake.
     g.fillStyle(0x07100b,.24);g.fillEllipse(headX-len*.42+5,cy+7,len*.92,br*2.1);
@@ -551,7 +551,7 @@ export class GameScene extends Phaser.Scene {
     if(this.obstacleIds.has(obstacle.id))return;this.obstacleIds.add(obstacle.id);
     const r=Math.round(obstacle.radius),key=`sb-obstacle-${obstacle.type}-${r}`;
     if(!this.textures.exists(key)){
-      const pad=22,size=r*2+pad*2,cx=r+pad,cy=r+pad;const g=this.make.graphics({x:0,y:0,add:false});
+      const pad=22,size=r*2+pad*2,cx=r+pad,cy=r+pad;const g=this.make.graphics({x:0,y:0}, false);
       g.fillStyle(0x09100c,.34);g.fillEllipse(cx+8,cy+12,r*2.05,r*1.25);
       if(obstacle.type==="wreck"){
         g.fillStyle(0x3e473f,1);g.fillRoundedRect(cx-r,cy-r*.48,r*2,r*.96,12);g.lineStyle(4,0x171f19,.8);g.strokeRoundedRect(cx-r,cy-r*.48,r*2,r*.96,12);g.fillStyle(0x7a5a38,.75);g.fillRect(cx-r*.45,cy-r*.58,r*.9,r*1.16);
@@ -710,7 +710,7 @@ export class GameScene extends Phaser.Scene {
   private releaseActorImage(image:Phaser.GameObjects.Image){image.setVisible(false).setActive(false).setPosition(-9999,-9999).setScale(1).setAlpha(1);this.actorImagePool.push(image);}
 
   private createPerformanceTextures(){
-    const make=(key:string,w:number,h:number,draw:(g:Phaser.GameObjects.Graphics)=>void)=>{if(this.textures.exists(key))return;const g=this.make.graphics({x:0,y:0,add:false});draw(g);g.generateTexture(key,w,h);g.destroy();};
+    const make=(key:string,w:number,h:number,draw:(g:Phaser.GameObjects.Graphics)=>void)=>{if(this.textures.exists(key))return;const g=this.make.graphics({x:0,y:0}, false);draw(g);g.generateTexture(key,w,h);g.destroy();};
     make("sb-fx-dot",16,16,g=>{g.fillStyle(0xffffff,1);g.fillCircle(8,8,7);});
     make("sb-fx-flash",40,40,g=>{g.fillStyle(0xffffff,1);g.fillCircle(20,20,18);});
     make("sb-fx-ring",64,64,g=>{g.lineStyle(5,0xffffff,1);g.strokeCircle(32,32,26);});
