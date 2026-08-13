@@ -5,10 +5,14 @@ import { leaderboardStore } from "./leaderboard";
 import { applyPhase1Balance } from "./balance/phase1";
 import { applyPhase2Balance } from "./balance/phase2";
 import { applyPhase3Balance } from "./balance/phase3";
+import { applyPhase3Polish } from "./balance/phase3Polish";
+import { applyPerformanceOptimizations } from "./balance/performance";
 
 applyPhase1Balance(TankRoom);
 applyPhase2Balance(TankRoom);
 applyPhase3Balance(TankRoom);
+applyPhase3Polish(TankRoom);
+applyPerformanceOptimizations(TankRoom);
 
 export const server = defineServer({
   rooms: { snake_blitz: defineRoom(TankRoom) },

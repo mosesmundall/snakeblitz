@@ -13,7 +13,8 @@ const BASE_FIRE_INTERVAL_MS = 205;
 const BASE_BODY_DAMAGE = 12;
 const HEADSHOT_MULTIPLIER = 4;
 const SHOP_SECONDS = 26;
-const SNAPSHOT_INTERVAL_MS = 40;
+const SNAPSHOT_INTERVAL_MS = Math.max(20, Math.min(100, Number(process.env.SNAPSHOT_INTERVAL_MS) || 20));
+const IDLE_SNAPSHOT_INTERVAL_MS = Math.max(SNAPSHOT_INTERVAL_MS, Math.min(500, Number(process.env.IDLE_SNAPSHOT_INTERVAL_MS) || 100));
 const LETTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
 type Role = "driver" | "gunner";
@@ -166,7 +167,8 @@ export class TankRoom extends Room {
         this.waveElapsedMs+=deltaMs; this.updateTank(dt); this.updateGun(deltaMs); this.updateSpawning(deltaMs); this.updateSnakes(deltaMs,dt); this.updateBoss(deltaMs,dt); this.updateBullets(deltaMs,dt); this.updateEnemyProjectiles(deltaMs,dt); this.updateCash(deltaMs); this.checkWaveComplete();
       } else if(this.phase==="intermission"){ this.phaseTimeLeftMs-=deltaMs; if(this.phaseTimeLeftMs<=0)this.startWave(this.wave+1); }
     }
-    this.snapshotAccumulatorMs+=deltaMs; if(this.snapshotAccumulatorMs>=SNAPSHOT_INTERVAL_MS){this.snapshotAccumulatorMs=0;this.broadcastSnapshot();}
+    const snapshotInterval=this.phase==="combat"?SNAPSHOT_INTERVAL_MS:IDLE_SNAPSHOT_INTERVAL_MS;
+    this.snapshotAccumulatorMs+=deltaMs; if(this.snapshotAccumulatorMs>=snapshotInterval){this.snapshotAccumulatorMs=0;this.broadcastSnapshot();}
   }
 
   private resetRun(){
@@ -234,8 +236,8 @@ export class TankRoom extends Room {
   private waveStats(){const l=Math.max(0,this.wave-1);let count=Math.min(58,7+Math.floor(this.wave*1.8)),hp=Math.min(1100,Math.round(54*Math.pow(1.14,l))),speed=Math.min(190,88+l*4.2),headRadius=Math.max(9,27-l*1.02),bodyRadius=Math.min(24,11+l*.68),length=Math.min(165,92+l*3.1);if(this.waveType==="FRENZY"){count=Math.round(count*1.5);hp=Math.round(hp*.62);speed*=1.28;headRadius*=.88;bodyRadius*=.84;length*=.86;}if(this.waveType==="TITAN_NEST"){count=Math.max(4,Math.round(count*.45));hp=Math.round(hp*2.3);speed*=.8;headRadius*=1.12;bodyRadius*=1.5;length*=1.26;}return{count,hp,speed,headRadius,bodyRadius,length};}
 
   private updateSnakes(deltaMs:number,dt:number){
-    const list=[...this.snakes.values()];this.rebuildSnakeGrid(list);
-    for(const enemy of list){
+    this.rebuildSnakeGrid(this.snakes.values());
+    for(const enemy of this.snakes.values()){
       if(!this.snakes.has(enemy.id))continue;enemy.contactCooldownMs=Math.max(0,enemy.contactCooldownMs-deltaMs);enemy.attackCooldownMs=Math.max(0,enemy.attackCooldownMs-deltaMs);
       const tx=this.tank.x-enemy.x,ty=this.tank.y-enemy.y,dToTank=Math.hypot(tx,ty)||1;
       if(enemy.variant==="VENOM"&&dToTank<520){if(enemy.attackCooldownMs<=0){this.fireVenom(enemy);enemy.attackCooldownMs=Math.max(900,2200-this.wave*20);}enemy.rotation=this.rotateTowards(enemy.rotation,Math.atan2(ty,tx),enemy.turnSpeed*dt);continue;}
@@ -252,10 +254,10 @@ export class TankRoom extends Room {
       if(enemy.variant==="BOMBER"&&distSq<bombRange*bombRange){this.explodeSnake(enemy,true);continue;}if(distSq<biteRange*biteRange&&enemy.contactCooldownMs<=0){this.damageTank(Math.min(18,5+Math.floor(this.wave*.5)),"bite",enemy.x,enemy.y);enemy.contactCooldownMs=740;}
     }
     // Positions have changed, so refresh the grid for bullet collision later this tick.
-    this.rebuildSnakeGrid([...this.snakes.values()]);
+    this.rebuildSnakeGrid(this.snakes.values());
   }
 
-  private rebuildSnakeGrid(list:SnakeEnemy[]){this.snakeGrid.clear();for(const enemy of list){const cx=Math.floor(enemy.x/this.snakeGridCell),cy=Math.floor(enemy.y/this.snakeGridCell),key=this.gridKey(cx,cy);let bucket=this.snakeGrid.get(key);if(!bucket){bucket=[];this.snakeGrid.set(key,bucket);}bucket.push(enemy);}}
+  private rebuildSnakeGrid(list:Iterable<SnakeEnemy>){this.snakeGrid.clear();for(const enemy of this.snakes.values()){const cx=Math.floor(enemy.x/this.snakeGridCell),cy=Math.floor(enemy.y/this.snakeGridCell),key=this.gridKey(cx,cy);let bucket=this.snakeGrid.get(key);if(!bucket){bucket=[];this.snakeGrid.set(key,bucket);}bucket.push(enemy);}}
   private nearbySnakes(x:number,y:number,radiusCells:number){const out:SnakeEnemy[]=[];const cx=Math.floor(x/this.snakeGridCell),cy=Math.floor(y/this.snakeGridCell);for(let oy=-radiusCells;oy<=radiusCells;oy++)for(let ox=-radiusCells;ox<=radiusCells;ox++){const bucket=this.snakeGrid.get(this.gridKey(cx+ox,cy+oy));if(bucket)out.push(...bucket);}return out;}
   private gridKey(cx:number,cy:number){return cx+cy*10000;}
   private fireVenom(s:SnakeEnemy){const a=Math.atan2(this.tank.y-s.y,this.tank.x-s.x),speed=390+Math.min(180,this.wave*6);this.enemyProjectiles.push({id:this.nextEnemyProjectileId++,x:s.x,y:s.y,vx:Math.cos(a)*speed,vy:Math.sin(a)*speed,radius:9,ageMs:0,kind:"VENOM",damage:Math.min(22,8+Math.floor(this.wave*.45))});this.broadcast("venom_shot",{x:s.x,y:s.y,angle:a});}
@@ -279,7 +281,7 @@ export class TankRoom extends Room {
     if(this.bossReinforcements>0){this.bossReinforcements--;this.bossSequenceIndex++;this.spawnBoss();this.broadcast("boss_phase",{phase:"REINFORCEMENT",remaining:this.bossReinforcements+1});return;}
     this.swapRoles();this.resetInputs();this.phase="boss_reward";this.pendingBossReward=undefined;this.phaseTimeLeftMs=0;}
 
-  private updateCash(deltaMs:number){const mult=this.economyMultiplier();const spawnEvery=this.waveType==="BONUS_MONEY"?4300:12800;this.cashSpawnAccumulatorMs+=deltaMs;if(mult>0&&this.cashSpawnAccumulatorMs>=spawnEvery){this.cashSpawnAccumulatorMs=0;this.spawnCashCrate(this.waveType==="BONUS_MONEY"?1.45:1);if(this.waveType==="BONUS_MONEY"&&Math.random()<.45)this.spawnCashCrate(1.15);}for(const c of [...this.cashCrates.values()]){c.timeLeftMs-=deltaMs;if(c.timeLeftMs<=0){this.cashCrates.delete(c.id);continue;}const r=this.combatStats().pickupRadius;if(this.distanceSq(c.x,c.y,this.tank.x,this.tank.y)<=r*r){this.cashCrates.delete(c.id);const awarded=Math.max(0,Math.round(c.value*mult/5)*5);if(awarded>0){this.cash+=awarded;this.cashCollected+=awarded;this.score+=Math.round(awarded*.8);}this.broadcast("cash_pickup",{x:c.x,y:c.y,value:awarded,baseValue:c.value,multiplier:mult,cash:this.cash});}}}
+  private updateCash(deltaMs:number){const mult=this.economyMultiplier();const spawnEvery=this.waveType==="BONUS_MONEY"?4300:12800;this.cashSpawnAccumulatorMs+=deltaMs;if(mult>0&&this.cashSpawnAccumulatorMs>=spawnEvery){this.cashSpawnAccumulatorMs=0;this.spawnCashCrate(this.waveType==="BONUS_MONEY"?1.45:1);if(this.waveType==="BONUS_MONEY"&&Math.random()<.45)this.spawnCashCrate(1.15);}for(const c of this.cashCrates.values()){c.timeLeftMs-=deltaMs;if(c.timeLeftMs<=0){this.cashCrates.delete(c.id);continue;}const r=this.combatStats().pickupRadius;if(this.distanceSq(c.x,c.y,this.tank.x,this.tank.y)<=r*r){this.cashCrates.delete(c.id);const awarded=Math.max(0,Math.round(c.value*mult/5)*5);if(awarded>0){this.cash+=awarded;this.cashCollected+=awarded;this.score+=Math.round(awarded*.8);}this.broadcast("cash_pickup",{x:c.x,y:c.y,value:awarded,baseValue:c.value,multiplier:mult,cash:this.cash});}}}
   private economyMultiplier(){const s=this.waveElapsedMs/1000;if(s<=10)return this.lerp(10,5,s/10);if(s<=20)return this.lerp(5,3,(s-10)/10);if(s<=30)return this.lerp(3,1,(s-20)/10);if(s<=45)return 1;if(s<=60)return this.lerp(1,.75,(s-45)/15);if(s<=75)return this.lerp(.75,.5,(s-60)/15);if(s<=90)return this.lerp(.5,0,(s-75)/15);return 0;}
   private spawnCashCrate(mult=1){const p=this.randomSafePoint(170);this.spawnCashAt(p.x,p.y,mult);}
   private spawnCashAt(x:number,y:number,mult=1){const base=85+this.wave*15,econ=this.combatStats().cashValueMultiplier,value=Math.round(base*mult*econ/5)*5,id=this.nextCashId++;this.cashCrates.set(id,{id,x,y,value,timeLeftMs:this.waveType==="BONUS_MONEY"?11500:9200});}

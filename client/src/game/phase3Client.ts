@@ -137,7 +137,7 @@ function installLobbyRoleMode(){
     (network as any).phase3AlternateRoles=checkbox.checked;
   });
   const tagline=document.querySelector<HTMLElement>(".tagline");
-  if(tagline)tagline.textContent="One tank. Two jobs. Swap every wave â€” or lock roles for the run. Blitz the horde before your cash multiplier collapses.";
+  if(tagline)tagline.textContent="One tank. Two jobs. Swap every wave  -  or lock roles for the run. Blitz the horde before your cash multiplier collapses.";
 }
 
 function installVeteranArsenal(){
@@ -189,7 +189,7 @@ function updatePhase3Ui(state:Phase3State){
   if(panel&&title&&desc&&bomb&&medkit){
     panel.classList.toggle("locked",!state.highTierUnlocked);
     if(!state.highTierUnlocked){
-      title.textContent="LOCKED â€” MAX ALL CORE UPGRADES";
+      title.textContent="LOCKED  -  MAX ALL CORE UPGRADES";
       desc.textContent="The Bomb Rack and combat Field Medkits unlock after every core upgrade reaches MAX.";
       bomb.textContent="LOCKED";
       medkit.textContent="LOCKED";
@@ -200,17 +200,17 @@ function updatePhase3Ui(state:Phase3State){
         ?"Driver: SPACE drops a 1.9s timed bomb. Q uses a shared Field Medkit."
         :"Install the Bomb Rack, then buy timed bomb charges. Q uses shared Field Medkits during combat.";
       if(!state.bombRackInstalled){
-        bomb.textContent=`INSTALL BOMB RACK â€¢ $${state.bombRackCost.toLocaleString()}`;
+        bomb.textContent=`INSTALL BOMB RACK  |  $${state.bombRackCost.toLocaleString()}`;
         bomb.disabled=state.cash<state.bombRackCost;
       }else{
         bomb.textContent=state.bombCharges>=state.bombCapacity
-          ?`BOMBS ${state.bombCharges}/${state.bombCapacity} â€¢ FULL`
-          :`BOMB ${state.bombCharges}/${state.bombCapacity} â€¢ $${state.bombChargeCost.toLocaleString()}`;
+          ?`BOMBS ${state.bombCharges}/${state.bombCapacity}  |  FULL`
+          :`BOMB ${state.bombCharges}/${state.bombCapacity}  |  $${state.bombChargeCost.toLocaleString()}`;
         bomb.disabled=state.bombCharges>=state.bombCapacity||state.cash<state.bombChargeCost;
       }
       medkit.textContent=state.medkits>=state.medkitCapacity
-        ?`MEDKITS ${state.medkits}/${state.medkitCapacity} â€¢ FULL`
-        :`MEDKIT ${state.medkits}/${state.medkitCapacity} â€¢ $${state.medkitCost.toLocaleString()}`;
+        ?`MEDKITS ${state.medkits}/${state.medkitCapacity}  |  FULL`
+        :`MEDKIT ${state.medkits}/${state.medkitCapacity}  |  $${state.medkitCost.toLocaleString()}`;
       medkit.disabled=state.medkits>=state.medkitCapacity||state.cash<state.medkitCost;
     }
   }
@@ -222,9 +222,9 @@ function updatePhase3Ui(state:Phase3State){
     const visible=state.highTierUnlocked&&(state.bombRackInstalled||state.medkits>0);
     hud.classList.toggle("hidden-arsenal",!visible);
     if(visible){
-      main.textContent=`BOMBS Ã—${state.bombCharges} â€¢ MEDKITS Ã—${state.medkits}`;
+      main.textContent=`BOMBS Ã—${state.bombCharges}  |  MEDKITS Ã—${state.medkits}`;
       help.textContent=state.bombRackInstalled
-        ?"Driver SPACE: drop bomb â€¢ Q: Field Medkit"
+        ?"Driver SPACE: drop bomb  |  Q: Field Medkit"
         :"Q: Field Medkit";
     }
   }
@@ -257,8 +257,8 @@ network.addEventListener("role_mode",(event)=>{
 
 network.addEventListener("boss_stage",(event)=>{
   const d=(event as CustomEvent<any>).detail;
-  if(d.stage===2)phase3Banner("BOSS ENRAGED â€” ATTACK PATTERNS ACCELERATED",1900);
-  else if(d.stage===3)phase3Banner("BOSS CRITICAL PHASE â€” MAXIMUM AGGRESSION",2200);
+  if(d.stage===2)phase3Banner("BOSS ENRAGED  -  ATTACK PATTERNS ACCELERATED",1900);
+  else if(d.stage===3)phase3Banner("BOSS CRITICAL PHASE  -  MAXIMUM AGGRESSION",2200);
 });
 
 network.addEventListener("high_tier_purchase",(event)=>{
@@ -295,7 +295,7 @@ window.setTimeout(()=>{
     const d=(event as CustomEvent<any>).detail;
     const el=document.querySelector<HTMLElement>("#event-banner");
     if(!el)return;
-    el.textContent=`WAVE ${d.wave} CLEARED â€¢ ${Number(d.multiplier).toFixed(2)}Ã— CLEAR MULTIPLIER â€¢ ROLES LOCKED${d.repair?` â€¢ +${d.repair} HP`:""}`;
+    el.textContent=`WAVE ${d.wave} CLEARED  |  ${Number(d.multiplier).toFixed(2)}Ã— CLEAR MULTIPLIER  |  ROLES LOCKED${d.repair?`  |  +${d.repair} HP`:""}`;
   });
 },0);
 
@@ -444,7 +444,7 @@ if(!sceneProto.__phase3VisualsInstalled){
       eliteInfo.set(d.snakeId,Array.isArray(d.mods)?d.mods:[]);
       const visual=this.snakeVisuals.get(d.snakeId);
       if(visual)visual.sprite.setScale(1.08);
-      this.spawnFloatingText(d.x,d.y-28,`ELITE â€¢ ${(d.mods??[]).join("+")}`,true,0xffc963);
+      this.spawnFloatingText(d.x,d.y-28,`ELITE  |  ${(d.mods??[]).join("+")}`,true,0xffc963);
     });
   };
 }

@@ -21,7 +21,7 @@ export function applyPhase2Balance(RoomClass: any) {
   };
 
   const classCaps: Record<P2Class,number> = {
-    GOLDEN:2, HEALER:3, RATTLER:2, ARMOURED:5, CHARGER:3, ALPHA:2,
+    GOLDEN:2, HEALER:3, RATTLER:1, ARMOURED:5, CHARGER:3, ALPHA:2,
   };
 
   function ensureRoomState(room:any){
