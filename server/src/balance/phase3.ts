@@ -345,7 +345,7 @@ export function applyPhase3Balance(RoomClass: any) {
   function isShielded(room:any,s:any){
     if(s.p3Class==="SHIELD")return false;
     const r2=265*265;
-    for(const shield of room.snakes.values()){
+    for(const shield of room.nearbySnakes(s.x,s.y,2)){
       if(shield.p3Class!=="SHIELD"||shield.id===s.id)continue;
       const dx=s.x-shield.x,dy=s.y-shield.y;
       if(dx*dx+dy*dy<=r2)return true;
@@ -448,7 +448,7 @@ export function applyPhase3Balance(RoomClass: any) {
         this.resolveSnakeObstacleCollisions(s);
         s.speed=s.p3BaseSpeed;
       }
-      this.rebuildSnakeGrid([...this.snakes.values()]);
+      this.rebuildSnakeGrid(this.snakes.values());
     }
 
     this.p3ShieldPulseMs+=deltaMs;
@@ -474,7 +474,7 @@ export function applyPhase3Balance(RoomClass: any) {
     if(source==="bite"){
       let attacker:any;
       let best=82*82;
-      for(const s of this.snakes.values()){
+      for(const s of this.nearbySnakes(x,y,1)){
         const dx=s.x-x,dy=s.y-y,d2=dx*dx+dy*dy;
         if(d2<best){best=d2;attacker=s;}
       }
@@ -512,8 +512,8 @@ export function applyPhase3Balance(RoomClass: any) {
       const tankDamage=Math.max(8,Math.round(9*damageScale(this.wave)));
       this.damageTank(tankDamage,"p3_explosion",x,y);
     }
-    for(const other of [...this.snakes.values()]){
-      if(this.distanceSq(x,y,other.x,other.y)>radius*radius)continue;
+    for(const other of this.nearbySnakes(x,y,1)){
+      if(!this.snakes.has(other.id)||this.distanceSq(x,y,other.x,other.y)>radius*radius)continue;
       other.hp-=Math.max(1,Math.round(other.maxHp*.36));
       if(other.hp<=0)this.killSnake(other,true);
     }
@@ -522,8 +522,9 @@ export function applyPhase3Balance(RoomClass: any) {
 
   function explodeFieldBomb(room:any,bomb:any){
     const {x,y,radius}=bomb;
-    for(const s of [...room.snakes.values()]){
-      if(room.distanceSq(x,y,s.x,s.y)>radius*radius)continue;
+    const cells=Math.max(1,Math.ceil(radius/room.snakeGridCell));
+    for(const s of room.nearbySnakes(x,y,cells)){
+      if(!room.snakes.has(s.id)||room.distanceSq(x,y,s.x,s.y)>radius*radius)continue;
       const fraction=s.p3Class==="TANK"?.42:.68;
       s.hp-=Math.max(500,Math.round(s.maxHp*fraction));
       if(s.hp<=0)room.killSnake(s,false);
@@ -572,8 +573,10 @@ export function applyPhase3Balance(RoomClass: any) {
   // Enemy projectiles keep the existing pooled client rendering but can now
   // carry a server-only source tag so boss fire has its own tuned damage.
   p.updateEnemyProjectiles=function(deltaMs:number,dt:number){
-    const keep=[];
-    for(const projectile of this.enemyProjectiles){
+    const projectiles=this.enemyProjectiles;
+    let write=0;
+    for(let i=0;i<projectiles.length;i++){
+      const projectile=projectiles[i];
       projectile.x+=projectile.vx*dt;
       projectile.y+=projectile.vy*dt;
       projectile.ageMs+=deltaMs;
@@ -582,9 +585,9 @@ export function applyPhase3Balance(RoomClass: any) {
         this.damageTank(projectile.damage,projectile.p3Source??"venom",projectile.x,projectile.y);
         continue;
       }
-      keep.push(projectile);
+      projectiles[write++]=projectile;
     }
-    this.enemyProjectiles=keep;
+    projectiles.length=write;
   };
 
   function setBossState(room:any,b:any,state:string,duration:number,angle?:number){

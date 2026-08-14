@@ -99,11 +99,10 @@ export function applyPhase2Balance(RoomClass: any) {
 
   function rebuildAlphaAura(room:any){
     room.phase2AlphaBuffed.clear();
-    const alphas=[...room.snakes.values()].filter((s:any)=>s.p2Class==="ALPHA");
-    if(!alphas.length)return;
     const r2=300*300;
-    for(const a of alphas){
-      for(const s of room.snakes.values()){
+    for(const a of room.snakes.values()){
+      if(a.p2Class!=="ALPHA")continue;
+      for(const s of room.nearbySnakes(a.x,a.y,2)){
         if(s.id===a.id)continue;
         const dx=s.x-a.x,dy=s.y-a.y;
         if(dx*dx+dy*dy<=r2)room.phase2AlphaBuffed.add(s.id);
@@ -120,9 +119,7 @@ export function applyPhase2Balance(RoomClass: any) {
       this.phase2AuraAccumulatorMs-=250;
       rebuildAlphaAura(this);
     }
-
-    const pre=[...this.snakes.values()];
-    for(const s of pre){
+    for(const s of this.snakes.values()){
       if(!s.p2Class)continue;
       s.p2BaseSpeed=s.p2BaseSpeed??s.speed;
       s.p2BaseTurnSpeed=s.p2BaseTurnSpeed??s.turnSpeed;
@@ -142,7 +139,7 @@ export function applyPhase2Balance(RoomClass: any) {
           s.p2TimerMs=3000+Math.random()*1700;
           const radius=250,r2=radius*radius;
           let healed=0;
-          for(const other of this.snakes.values()){
+          for(const other of this.nearbySnakes(s.x,s.y,2)){
             if(other.id===s.id||other.hp>=other.maxHp)continue;
             const dx=other.x-s.x,dy=other.y-s.y;
             if(dx*dx+dy*dy>r2)continue;
@@ -207,7 +204,7 @@ export function applyPhase2Balance(RoomClass: any) {
 
     originalUpdateSnakes.call(this,deltaMs,dt);
 
-    for(const s of [...this.snakes.values()]){
+    for(const s of this.snakes.values()){
       if(!s.p2Class)continue;
 
       if(s.p2Class==="CHARGER"&&s.p2State==="CHARGE"&&!s.p2ChargeHit){
@@ -241,7 +238,7 @@ export function applyPhase2Balance(RoomClass: any) {
     if(source==="bite"){
       let attacker:any;
       let best=80*80;
-      for(const s of this.snakes.values()){
+      for(const s of this.nearbySnakes(x,y,1)){
         const dx=s.x-x,dy=s.y-y,d2=dx*dx+dy*dy;
         if(d2<best){best=d2;attacker=s;}
       }

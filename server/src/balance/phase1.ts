@@ -34,7 +34,7 @@ export function applyPhase1Balance(RoomClass: any) {
   p.resetRun = function () {
     originalResetRun.call(this);
     this.cash = 100;
-    this.lastClearMultiplier = 5;
+    this.lastClearMultiplier = 10;
   };
 
   // Fewer, stronger enemies. Count/speed/size cap; HP continues forever.
@@ -72,13 +72,14 @@ export function applyPhase1Balance(RoomClass: any) {
     const growth = definition.costGrowth + 0.06;
     return Math.round(base * Math.pow(growth, level) / 5) * 5;
   };
-
-  // Reduce early farming while preserving the existing anti-stall decay.
+  // Restore the original high-reward clear multiplier curve. Upgrade prices and
+  // Phase 1's lower base crate values remain unchanged, so cash is more generous
+  // without completely reverting the harder economy/progression balance.
   p.economyMultiplier = function () {
     const s = this.waveElapsedMs / 1000;
-    if (s <= 10) return lerp(5, 3, s / 10);
-    if (s <= 20) return lerp(3, 1.75, (s - 10) / 10);
-    if (s <= 30) return lerp(1.75, 1, (s - 20) / 10);
+    if (s <= 10) return lerp(10, 5, s / 10);
+    if (s <= 20) return lerp(5, 3, (s - 10) / 10);
+    if (s <= 30) return lerp(3, 1, (s - 20) / 10);
     if (s <= 45) return 1;
     if (s <= 60) return lerp(1, 0.75, (s - 45) / 15);
     if (s <= 75) return lerp(0.75, 0.5, (s - 60) / 15);

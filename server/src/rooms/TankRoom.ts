@@ -13,7 +13,7 @@ const BASE_FIRE_INTERVAL_MS = 205;
 const BASE_BODY_DAMAGE = 12;
 const HEADSHOT_MULTIPLIER = 4;
 const SHOP_SECONDS = 26;
-const SNAPSHOT_INTERVAL_MS = Math.max(20, Math.min(100, Number(process.env.SNAPSHOT_INTERVAL_MS) || 20));
+const SNAPSHOT_INTERVAL_MS = Math.max(20, Math.min(100, Number(process.env.SNAPSHOT_INTERVAL_MS) || 40));
 const IDLE_SNAPSHOT_INTERVAL_MS = Math.max(SNAPSHOT_INTERVAL_MS, Math.min(500, Number(process.env.IDLE_SNAPSHOT_INTERVAL_MS) || 100));
 const LETTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
@@ -181,7 +181,7 @@ export class TankRoom extends Room {
   }
 
   private updateTank(dt:number){
-    const driver=[...this.players.values()].find(p=>p.role==="driver"); if(!driver)return;
+    let driver:PlayerInfo|undefined;for(const p of this.players.values()){if(p.role==="driver"){driver=p;break;}}if(!driver)return;
     const key=this.mode==="local"?"local-driver":driver.sessionId; const input=this.driveInputs.get(key)??{throttle:0,turn:0}; const stats=this.combatStats();
     if(this.speedBoostMs>0)this.speedBoostMs=Math.max(0,this.speedBoostMs-dt*1000);
     const boost=this.speedBoostMs>0?1.75:1; const speed=(input.throttle>=0?stats.forwardSpeed:stats.reverseSpeed)*boost;
@@ -192,7 +192,7 @@ export class TankRoom extends Room {
   private resolveTankObstacleCollisions(){for(const o of OBSTACLES){const dx=this.tank.x-o.x,dy=this.tank.y-o.y,d=Math.hypot(dx,dy)||.001,min=TANK_RADIUS+o.radius;if(d<min){const p=min-d;this.tank.x+=dx/d*p;this.tank.y+=dy/d*p;}}}
 
   private updateGun(deltaMs:number){
-    const gunner=[...this.players.values()].find(p=>p.role==="gunner"); if(!gunner)return;
+    let gunner:PlayerInfo|undefined;for(const p of this.players.values()){if(p.role==="gunner"){gunner=p;break;}}if(!gunner)return;
     const key=this.mode==="local"?"local-gunner":gunner.sessionId; const input=this.gunInputs.get(key);if(!input)return;this.tank.turretRotation=input.angle;this.fireCooldownMs=Math.max(0,this.fireCooldownMs-deltaMs);
     if(input.firing&&this.fireCooldownMs<=0){this.spawnBullet();this.fireCooldownMs=this.combatStats().fireIntervalMs;}
   }
