@@ -674,3 +674,74 @@ canvas { display: block; }
   .credits-block{gap:3px 7px;font-size:7px}
   .death-quip{font-size:10px;margin-bottom:13px}
 }
+/* ===== Snake Blitz prominent death popup ===== */
+#death-quip{display:none!important}
+.death-popup{
+  position:absolute;
+  inset:0;
+  z-index:310;
+  display:grid;
+  place-items:center;
+  padding:22px;
+  background:rgba(2,6,5,.80);
+  backdrop-filter:blur(8px);
+}
+.death-popup.hidden{display:none}
+.death-popup-card{
+  position:relative;
+  width:min(760px,94vw);
+  padding:34px 38px 30px;
+  border:1px solid rgba(230,92,72,.40);
+  border-radius:19px;
+  background:
+    radial-gradient(circle at 50% 0%,rgba(142,52,36,.20),transparent 42%),
+    linear-gradient(160deg,rgba(27,34,29,.99),rgba(8,13,11,.995));
+  box-shadow:0 30px 110px rgba(0,0,0,.76),0 0 45px rgba(189,68,46,.10);
+  text-align:center;
+  animation:deathPopIn .22s ease-out both;
+}
+.death-popup-card h2{
+  margin:6px 44px 14px;
+  color:#f3e8ca;
+  font-size:clamp(27px,4vw,46px);
+  line-height:.98;
+  letter-spacing:-.035em;
+}
+#death-popup-message{
+  margin:18px auto 22px;
+  max-width:650px;
+  color:#f0ce79;
+  font-size:clamp(20px,2.5vw,29px);
+  font-weight:850;
+  line-height:1.32;
+  text-wrap:balance;
+}
+.death-popup-close{
+  position:absolute;
+  top:12px;
+  right:12px;
+  width:40px;
+  height:40px;
+  padding:0;
+  border-radius:50%;
+  border:1px solid rgba(255,255,255,.13);
+  background:rgba(255,255,255,.045);
+  color:#d8ddd5;
+  font-size:26px;
+  line-height:1;
+}
+.death-popup-close:hover{background:rgba(226,92,72,.15);color:#fff0e8}
+.death-popup-dismiss{
+  min-width:190px;
+  padding:11px 18px;
+}
+@keyframes deathPopIn{
+  from{opacity:0;transform:translateY(12px) scale(.97)}
+  to{opacity:1;transform:translateY(0) scale(1)}
+}
+@media(max-width:560px){
+  .death-popup{padding:10px}
+  .death-popup-card{padding:28px 18px 22px}
+  .death-popup-card h2{margin:8px 35px 12px}
+  #death-popup-message{font-size:18px}
+}

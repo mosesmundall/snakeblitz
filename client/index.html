@@ -5,7 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <meta name="theme-color" content="#07110d" />
   <title>Snake Blitz — Two-Player Co-op Survival</title>
-</head>
+  <link rel="icon" href="/favicon.ico?v=beta2" sizes="any" />
+  <link rel="icon" type="image/png" href="/favicon-64.png?v=beta2" sizes="64x64" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=beta2" /></head>
 <body>
 <main id="app">
   <section id="lobby" class="panel lobby-panel">
@@ -103,7 +105,15 @@
         </div>
       </div>
     </div>
-    <div class="controls-hint hud"><span id="controls-text">Waiting for role assignment…</span></div>
+        <div id="death-popup" class="death-popup hidden" role="dialog" aria-modal="true" aria-labelledby="death-popup-title">
+      <section class="death-popup-card">
+        <button id="death-popup-close" class="death-popup-close" type="button" aria-label="Close death message">Ã—</button>
+        <div class="eyebrow danger">CAUSE OF DEFEAT</div>
+        <h2 id="death-popup-title">THE SNAKES HAVE SPOKEN</h2>
+        <p id="death-popup-message"></p>
+        <button id="death-popup-dismiss" class="primary death-popup-dismiss" type="button">FAIR ENOUGH</button>
+      </section>
+    </div><div class="controls-hint hud"><span id="controls-text">Waiting for role assignment…</span></div>
   </section>
 
   <div id="leaderboard-overlay" class="leaderboard-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="leaderboard-title">

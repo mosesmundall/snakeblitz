@@ -21,6 +21,7 @@ const boostHud=$("#boost-hud"),boostName=$("#boost-name"),boostCount=$("#boost-c
 const shopOverlay=$("#shop-overlay"),shopCash=$("#shop-cash"),shopTimer=$("#shop-timer"),shopClearMultiplier=$("#shop-clear-multiplier"),shopSubtitle=$("#shop-subtitle"),shopRoles=$("#shop-roles"),shopBuildSummary=$("#shop-build-summary"),upgradeGrid=$("#upgrade-grid"),buyRepairButton=$<HTMLButtonElement>("#buy-repair"),repairDescription=$("#repair-description"),readyPlayer1=$("#ready-player-1"),readyPlayer2=$("#ready-player-2"),shopMessage=$("#shop-message"),shopReadyButton=$<HTMLButtonElement>("#shop-ready");
 const bossWheel=$("#boss-wheel-overlay"),wheel=$("#reward-wheel"),bossRewardResult=$("#boss-reward-result"),bossRewardDesc=$("#boss-reward-desc"),spinBoss=$<HTMLButtonElement>("#spin-boss-reward"),continueBoss=$<HTMLButtonElement>("#continue-after-boss");
 const deathQuip=$("#death-quip");
+const deathPopup=$("#death-popup"),deathPopupMessage=$("#death-popup-message"),deathPopupClose=$<HTMLButtonElement>("#death-popup-close"),deathPopupDismiss=$<HTMLButtonElement>("#death-popup-dismiss");
 const gameOver=$("#game-over"),restartButton=$<HTMLButtonElement>("#restart-game"),backHomeButton=$<HTMLButtonElement>("#back-home"),resultWave=$("#result-wave"),resultScore=$("#result-score"),resultKills=$("#result-kills"),resultHeadshots=$("#result-headshots"),resultCash=$("#result-cash"),resultLeaderboard=$("#result-leaderboard"),resultLeaderboardRank=$("#result-leaderboard-rank");
 const openLeaderboardButton=$<HTMLButtonElement>("#open-leaderboard"),closeLeaderboardButton=$<HTMLButtonElement>("#close-leaderboard"),refreshLeaderboardButton=$<HTMLButtonElement>("#refresh-leaderboard"),leaderboardOverlay=$("#leaderboard-overlay"),leaderboardList=$("#leaderboard-list");
 const musicButtons=[...document.querySelectorAll<HTMLButtonElement>(".music-toggle")];
@@ -46,13 +47,19 @@ function setMode(mode:"online"|"local"){modeOnline.classList.toggle("active",mod
 createButton.onclick=async()=>{audio.unlock();const name=getName();if(!name)return;setBusy(true,"Creating room…");try{const id=await network.createGame(name);enterGame();showBanner(`ROOM ${id} • SEND THIS CODE TO PLAYER 2`,3600);}catch(e){showError(e)}finally{setBusy(false)}};
 joinButton.onclick=async()=>{audio.unlock();const name=getName();if(!name)return;const code=codeInput.value.trim().toUpperCase();if(code.length!==4){status.textContent="Enter the four-character room code.";status.classList.add("error");return;}setBusy(true,"Joining room…");try{await network.joinGame(code,name);enterGame();}catch(e){showError(e)}finally{setBusy(false)}};
 startLocal.onclick=async()=>{audio.unlock();const n1=localName1.value.trim().slice(0,18),n2=localName2.value.trim().slice(0,18);if(!n1||!n2){status.textContent="Enter both player names.";status.classList.add("error");return;}localStorage.setItem("snakeBlitzLocal1",n1);localStorage.setItem("snakeBlitzLocal2",n2);setBusy(true,"Starting local co-op…");try{await network.createLocalGame(n1,n2);enterGame();}catch(e){showError(e)}finally{setBusy(false)}};
-restartButton.onclick=()=>{gameOver.classList.add("hidden");bossWheel.classList.add("hidden");network.restart();};
+restartButton.onclick=()=>{deathPopup.classList.add("hidden");lastTankHitSource="snake";gameOver.classList.add("hidden");bossWheel.classList.add("hidden");network.restart();};
 backHomeButton.onclick=()=>void returnToHomepage();
+const closeDeathPopup=()=>deathPopup.classList.add("hidden");
+deathPopupClose.onclick=closeDeathPopup;
+deathPopupDismiss.onclick=closeDeathPopup;
+deathPopup.addEventListener("click",event=>{if(event.target===deathPopup)closeDeathPopup();});
 openLeaderboardButton.onclick=()=>{leaderboardOverlay.classList.remove("hidden");void loadLeaderboard(leaderboardList);};
 closeLeaderboardButton.onclick=()=>leaderboardOverlay.classList.add("hidden");
 refreshLeaderboardButton.onclick=()=>void loadLeaderboard(leaderboardList);
 leaderboardOverlay.addEventListener("click",event=>{if(event.target===leaderboardOverlay)leaderboardOverlay.classList.add("hidden");});
 window.addEventListener("keydown",event=>{if(event.key==="Escape"&&!leaderboardOverlay.classList.contains("hidden"))leaderboardOverlay.classList.add("hidden");});
+const deathPopupEscapeHandler=(event:KeyboardEvent)=>{if(event.key==="Escape"&&!deathPopup.classList.contains("hidden"))deathPopup.classList.add("hidden");};
+window.addEventListener("keydown",deathPopupEscapeHandler);
 buyRepairButton.onclick=()=>network.buyRepair();shopReadyButton.onclick=()=>{const s=latestSnapshot;if(!s||s.phase!=="intermission")return;const meReady=s.mode==="local"?s.readySessionIds.length>=2:s.readySessionIds.includes(network.sessionId);network.setShopReady(!meReady);audio.readyPing();};
 spinBoss.onclick=()=>{if(bossSpinInProgress)return;bossSpinInProgress=true;spinBoss.disabled=true;bossRewardResult.textContent="LOCKING REWARDâ€¦";bossRewardDesc.textContent="The server is selecting your reward.";network.spinBossReward();};continueBoss.onclick=()=>network.continueAfterBoss();
 
@@ -118,6 +125,7 @@ network.addEventListener("game_over",e=>{
   resultWave.textContent=String(d.wave);resultScore.textContent=d.score.toLocaleString();resultCash.textContent=`$${(d.cashCollected??d.cash).toLocaleString()}`;resultKills.textContent=d.kills.toLocaleString();resultHeadshots.textContent=d.headshots.toLocaleString();
   deathQuip.textContent=buildDeathQuip(latestSnapshot?.players??[],lastTankHitSource);
   resultLeaderboardRank.textContent=d.leaderboardRank?`NEW #${d.leaderboardRank} ALL-TIME`:"";
+  deathPopupMessage.textContent=buildDeathQuip(latestSnapshot?.players??[],lastTankHitSource);deathPopup.classList.remove("hidden");
   if(Array.isArray(d.leaderboard))renderLeaderboard(resultLeaderboard,d.leaderboard,d.leaderboardRank??null);else void loadLeaderboard(resultLeaderboard);
   setTimeout(()=>gameOver.classList.remove("hidden"),450);
 });
@@ -203,7 +211,7 @@ function renderLeaderboard(target:HTMLElement,entries:LeaderboardEntry[],highlig
     row.append(rank,team,wave,score);target.append(row);
   });
 }
-async function returnToHomepage(){
+async function returnToHomepage(){deathPopup.classList.add("hidden");
   gameOver.classList.add("hidden");shopOverlay.classList.add("hidden");bossWheel.classList.add("hidden");leaderboardOverlay.classList.add("hidden");eventBanner.classList.add("hidden");waitingBanner.classList.add("hidden");
   audio.setEngineMotion(0,0,false);
   await network.leaveGame();
