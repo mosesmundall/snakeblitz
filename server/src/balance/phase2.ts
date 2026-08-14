@@ -259,7 +259,7 @@ export function applyPhase2Balance(RoomClass: any) {
     const x=s.x,y=s.y;
     originalKillSnake.call(this,s,exploded);
     if(golden){
-      const reward=Math.round((200+this.wave*30)/5)*5;
+      const reward=Math.round((200+this.wave*30)*1.35/5)*5;
       this.cash+=reward;
       this.cashCollected+=reward;
       this.score+=reward;

@@ -41,8 +41,9 @@ export function applyPhase1Balance(RoomClass: any) {
   p.waveStats = function () {
     const l = Math.max(0, this.wave - 1);
     let count = Math.min(36, 7 + Math.floor(this.wave * 1.15));
-    let hp = Math.round(320 * hpScale(this.wave));
-    let speed = Math.min(178, 88 + l * 2.5);
+    const fullHpScale = hpScale(this.wave), slowedHpScale = 0.17 + (fullHpScale - 0.17) * 0.5;
+    let hp = Math.round(320 * slowedHpScale);
+    let speed = Math.min(178, 88 + l * 2.15);
     let headRadius = Math.max(12, 27 - l * 0.45);
     let bodyRadius = Math.min(23, 11 + l * 0.38);
     let length = Math.min(155, 92 + l * 1.7);
@@ -90,7 +91,7 @@ export function applyPhase1Balance(RoomClass: any) {
   p.spawnCashAt = function (x: number, y: number, mult = 1) {
     const base = 50 + this.wave * 9;
     const econ = this.combatStats().cashValueMultiplier;
-    const value = Math.round(base * mult * econ / 5) * 5;
+    const value = Math.round(base * 1.35 * mult * econ / 5) * 5;
     const id = this.nextCashId++;
     this.cashCrates.set(id, {
       id, x, y, value,

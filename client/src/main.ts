@@ -4,6 +4,7 @@ import { GameScene } from "./game/GameScene";
 import "./game/phase2Client";
 import "./game/phase3Client";
 import "./game/phase3PolishClient";
+import "./game/visualPolishClient";
 import { audio } from "./game/AudioManager";
 import { network } from "./network";
 import type { BoostType, GameSnapshot, LeaderboardEntry, UpgradeId, UpgradeSnapshot, WaveType } from "./types";
