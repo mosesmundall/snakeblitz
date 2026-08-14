@@ -28,6 +28,7 @@ const sfxButtons=[...document.querySelectorAll<HTMLButtonElement>(".sfx-toggle")
 interface UpgradeCardElements{root:HTMLElement;level:HTMLElement;current:HTMLElement;next:HTMLElement;button:HTMLButtonElement;fill:HTMLElement;}
 let game:Phaser.Game|undefined,bannerTimeout:number|undefined,shopMessageTimeout:number|undefined,latestSnapshot:GameSnapshot|undefined;
 let lastUiUpdateAt=0,lastUiPhase:GameSnapshot["phase"]|undefined;
+let bossSpinInProgress=false,bossSpinToken=0;
 const upgradeCards=new Map<UpgradeId,UpgradeCardElements>();
 
 nameInput.value=localStorage.getItem("snakeBlitzName")??localStorage.getItem("snakeTankName")??"";
@@ -51,7 +52,7 @@ refreshLeaderboardButton.onclick=()=>void loadLeaderboard(leaderboardList);
 leaderboardOverlay.addEventListener("click",event=>{if(event.target===leaderboardOverlay)leaderboardOverlay.classList.add("hidden");});
 window.addEventListener("keydown",event=>{if(event.key==="Escape"&&!leaderboardOverlay.classList.contains("hidden"))leaderboardOverlay.classList.add("hidden");});
 buyRepairButton.onclick=()=>network.buyRepair();shopReadyButton.onclick=()=>{const s=latestSnapshot;if(!s||s.phase!=="intermission")return;const meReady=s.mode==="local"?s.readySessionIds.length>=2:s.readySessionIds.includes(network.sessionId);network.setShopReady(!meReady);audio.readyPing();};
-spinBoss.onclick=()=>{spinBoss.disabled=true;wheel.classList.add("spinning");network.spinBossReward();};continueBoss.onclick=()=>network.continueAfterBoss();
+spinBoss.onclick=()=>{if(bossSpinInProgress)return;bossSpinInProgress=true;spinBoss.disabled=true;bossRewardResult.textContent="LOCKING REWARDâ€¦";bossRewardDesc.textContent="The server is selecting your reward.";network.spinBossReward();};continueBoss.onclick=()=>network.continueAfterBoss();
 
 network.addEventListener("snapshot",e=>{
   const s=(e as CustomEvent<GameSnapshot>).detail;latestSnapshot=s;
@@ -68,8 +69,46 @@ network.addEventListener("repair_purchased",e=>{const d=(e as CustomEvent<any>).
 network.addEventListener("purchase_denied",e=>showShopMessage((e as CustomEvent<any>).detail.reason,true));
 network.addEventListener("boss_phase",e=>{const d=(e as CustomEvent<any>).detail;if(d.phase==="TELEGRAPH")showBanner("BOSS TELEGRAPH — GET OUT OF THE STRIKE LINE!",1200);else if(d.phase==="EXPOSED")showBanner("BOSS EXPOSED — ACCURATE FIRE NOW!",1500);else if(d.phase==="VENOM")showBanner("VENOM BARRAGE — KEEP MOVING!",1200);else if(d.phase==="REINFORCEMENT")showBanner(`BOSS REINFORCEMENT INCOMING • ${d.remaining} REMAIN`,2200);});
 network.addEventListener("boss_defeated",e=>{const d=(e as CustomEvent<any>).detail;showBanner(`${prettyBoss(d.type)} DEFEATED • BOSS REWARD UNLOCKED`,3200);});
-network.addEventListener("boss_reward",e=>{const d=(e as CustomEvent<{reward:BoostType;name:string;description:string}>).detail;const order:BoostType[]=["SPEED","MEDKIT","REVIVE","BOMB","NUKE","CASH_BONUS"];const idx=order.indexOf(d.reward);wheel.style.setProperty("--spin-angle",`${1440+(360-idx*60)+Math.round((Math.random()-.5)*24)}deg`);bossRewardResult.textContent="SPINNING…";bossRewardDesc.textContent="Reward locked by the server. Stand by…";spinBoss.classList.add("hidden");window.setTimeout(()=>{wheel.classList.remove("spinning");bossRewardResult.textContent=`${d.name.toUpperCase()} ACQUIRED`;bossRewardDesc.textContent=d.description;continueBoss.classList.remove("hidden");},2200);});
-network.addEventListener("boost_used",e=>{const d=(e as CustomEvent<any>).detail;showBanner(`${d.automatic?"AUTO-":""}${d.name.toUpperCase()} ACTIVATED`,1800);});
+network.addEventListener("boss_reward",e=>{
+  const d=(e as CustomEvent<{reward:BoostType;name:string;description:string}>).detail;
+  const order:BoostType[]=["SPEED","MEDKIT","REVIVE","BOMB","NUKE","CASH_BONUS"];
+  const idx=order.indexOf(d.reward);
+  if(idx<0){bossSpinInProgress=false;spinBoss.disabled=false;return;}
+
+  // The server-selected reward is authoritative. Spin four full rotations and
+  // stop with the exact selected sector centered under the top pointer.
+  const landing=(330-idx*60+360)%360;
+  const targetAngle=1440+landing;
+  const token=++bossSpinToken;
+
+  wheel.classList.remove("spinning");
+  wheel.style.transform="rotate(0deg)";
+  wheel.style.removeProperty("--spin-angle");
+  void wheel.offsetWidth;
+  wheel.style.transform="";
+  wheel.style.setProperty("--spin-angle",`${targetAngle}deg`);
+  wheel.dataset.reward=String(d.reward);
+
+  bossRewardResult.textContent="SPINNINGâ€¦";
+  bossRewardDesc.textContent="Reward locked by the server. Spinning to the exact resultâ€¦";
+  spinBoss.classList.add("hidden");
+  continueBoss.classList.add("hidden");
+
+  let finished=false;
+  const finish=()=>{
+    if(finished||token!==bossSpinToken)return;
+    finished=true;
+    bossSpinInProgress=false;
+    wheel.removeEventListener("transitionend",onEnd);
+    bossRewardResult.textContent=`${d.name.toUpperCase()} ACQUIRED`;
+    bossRewardDesc.textContent=d.description;
+    continueBoss.classList.remove("hidden");
+  };
+  const onEnd=(event:TransitionEvent)=>{if(event.propertyName==="transform")finish();};
+  wheel.addEventListener("transitionend",onEnd);
+  requestAnimationFrame(()=>wheel.classList.add("spinning"));
+  window.setTimeout(finish,2350);
+});network.addEventListener("boost_used",e=>{const d=(e as CustomEvent<any>).detail;showBanner(`${d.automatic?"AUTO-":""}${d.name.toUpperCase()} ACTIVATED`,1800);});
 network.addEventListener("game_over",e=>{
   shopOverlay.classList.add("hidden");bossWheel.classList.add("hidden");
   const d=(e as CustomEvent<any>).detail;
@@ -125,13 +164,29 @@ function updateHud(s:GameSnapshot){hudRoom.textContent=s.mode==="local"?"LOCAL":
 function updateBoostHud(s:GameSnapshot){const available=s.boosts.filter(b=>b.count>0);if(!available.length){boostName.textContent="NONE";boostCount.textContent="";boostHud.classList.add("empty");return;}boostHud.classList.remove("empty");const item=available[s.selectedBoostIndex%available.length];boostName.textContent=item.name.toUpperCase();boostCount.textContent=`×${item.count}`;}
 function updateShop(s:GameSnapshot){const open=s.phase==="intermission";shopOverlay.classList.toggle("hidden",!open);if(!open)return;if(upgradeCards.size===0)buildUpgradeCards(s.upgrades);shopCash.textContent=`$${s.cash.toLocaleString()}`;shopTimer.textContent=formatTime(s.timeLeftMs);shopClearMultiplier.textContent=`${s.lastClearMultiplier.toFixed(2)}×`;shopClearMultiplier.classList.toggle("taxed",s.lastClearMultiplier<1);shopSubtitle.textContent=`Wave ${s.wave} cleared at ${s.lastClearMultiplier.toFixed(2)}×. Build for Wave ${s.wave+1}. Major upgrades visibly change the vehicle.`;shopRoles.textContent=s.players.map(p=>`${p.name} → ${p.role.toUpperCase()}`).join(" • ");const st=s.combatStats;shopBuildSummary.textContent=`${st.bodyDamage} body • ${st.headDamage} head • ${(1000/st.fireIntervalMs).toFixed(1)} rps • ${st.weaponTier.replace("_"," ")} • ${st.maxHealth} HP`;
  for(const u of s.upgrades){const el=upgradeCards.get(u.id);if(!el)continue;el.level.textContent=`LV ${u.level} / ${u.maxLevel}`;el.current.textContent=u.currentEffect;el.next.textContent=u.maxed?"Maximum upgrade reached":`NEXT • ${u.nextEffect}`;el.fill.style.width=`${u.level/u.maxLevel*100}%`;el.root.classList.toggle("maxed",u.maxed);const afford=u.cost!==null&&s.cash>=u.cost;el.button.disabled=u.maxed||!afford;el.button.textContent=u.maxed?"MAXED":`$${u.cost?.toLocaleString()}`;el.button.classList.toggle("affordable",afford&&!u.maxed);}
- repairDescription.textContent=`Restore up to ${s.repair.restore} integrity • ${Math.ceil(s.tank.health)} / ${s.tank.maxHealth} HP`;buyRepairButton.textContent=s.tank.health>=s.tank.maxHealth-.5?"FULL INTEGRITY":`REPAIR • $${s.repair.cost.toLocaleString()}`;buyRepairButton.disabled=!s.repair.canBuy;
+ repairDescription.textContent=`Restore 35% max integrity (${s.repair.restore} HP) â€¢ ${Math.ceil(s.tank.health)} / ${s.tank.maxHealth} HP`;buyRepairButton.textContent=s.tank.health>=s.tank.maxHealth-.5?"FULL INTEGRITY":`REPAIR • $${s.repair.cost.toLocaleString()}`;buyRepairButton.disabled=!s.repair.canBuy;
  const ready=new Set(s.readySessionIds);updateReadyPill(readyPlayer1,s.players[0],ready);updateReadyPill(readyPlayer2,s.players[1],ready);const meReady=s.mode==="local"?ready.size>=2:ready.has(network.sessionId);shopReadyButton.textContent=meReady?"READY ✓ — CLICK TO CANCEL":`READY FOR WAVE ${s.wave+1}`;shopReadyButton.classList.toggle("is-ready",meReady);
 }
 function buildUpgradeCards(upgrades:UpgradeSnapshot[]){upgradeGrid.innerHTML="";for(const u of upgrades){const root=document.createElement("article");root.className=`upgrade-card upgrade-${u.id.toLowerCase()}`;const header=document.createElement("div");header.className="upgrade-card-header";const wrap=document.createElement("div"),k=document.createElement("span"),t=document.createElement("strong"),level=document.createElement("span");k.className="upgrade-kicker";k.textContent=u.shortName;t.textContent=u.name;level.className="upgrade-level";wrap.append(k,t);header.append(wrap,level);const desc=document.createElement("p");desc.textContent=u.description;const progress=document.createElement("div");progress.className="upgrade-progress";const fill=document.createElement("div");progress.append(fill);const current=document.createElement("div");current.className="upgrade-current";const next=document.createElement("div");next.className="upgrade-next";const button=document.createElement("button");button.className="shop-buy";button.onclick=()=>network.buyUpgrade(u.id);root.append(header,desc,progress,current,next,button);upgradeGrid.append(root);upgradeCards.set(u.id,{root,level,current,next,button,fill});}}
 function updateReadyPill(el:HTMLElement,p:GameSnapshot["players"][number]|undefined,r:Set<string>){if(!p){el.textContent="WAITING";return;}const ready=r.has(p.sessionId);el.textContent=`${p.name.toUpperCase()} • ${ready?"READY ✓":"CHOOSING"}`;el.classList.toggle("ready",ready);}
-function updateBossReward(s:GameSnapshot){const open=s.phase==="boss_reward";bossWheel.classList.toggle("hidden",!open);if(!open)return;if(!s.pendingBossReward){wheel.style.transform="rotate(0deg)";void wheel.offsetWidth;wheel.style.transform="";spinBoss.classList.remove("hidden");spinBoss.disabled=false;continueBoss.classList.add("hidden");bossRewardResult.textContent="Spin for your boss reward";bossRewardDesc.textContent="Rare boosts persist into future waves until used.";wheel.classList.remove("spinning");}}
-function phaseLabel(s:GameSnapshot){if(s.phase==="intermission")return"ARMORY";if(s.phase==="boss_reward")return"REWARD";if(s.phase==="gameover")return"DESTROYED";return"STANDBY";}
+function updateBossReward(s:GameSnapshot){
+  const open=s.phase==="boss_reward";
+  bossWheel.classList.toggle("hidden",!open);
+  if(!open)return;
+  // While waiting for the server-selected result, snapshots must not reset
+  // the wheel or remove the animation state.
+  if(!s.pendingBossReward&&!bossSpinInProgress){
+    wheel.classList.remove("spinning");
+    wheel.style.removeProperty("--spin-angle");
+    wheel.style.transform="rotate(0deg)";
+    wheel.dataset.reward="";
+    spinBoss.classList.remove("hidden");
+    spinBoss.disabled=false;
+    continueBoss.classList.add("hidden");
+    bossRewardResult.textContent="Spin for your boss reward";
+    bossRewardDesc.textContent="Rare boosts persist into future waves until used.";
+  }
+}function phaseLabel(s:GameSnapshot){if(s.phase==="intermission")return"ARMORY";if(s.phase==="boss_reward")return"REWARD";if(s.phase==="gameover")return"DESTROYED";return"STANDBY";}
 function formatTime(ms:number){const total=Math.ceil(ms/1000);return`00:${String(Math.max(0,total)).padStart(2,"0")}`;}
 function prettyWaveType(t:WaveType){return t==="BONUS_MONEY"?"BONUS CASH":t==="VOLATILE_SNAKES"?"VOLATILE":t==="TITAN_NEST"?"TITAN NEST":t==="BOSS"?"BOSS FIGHT":t;}
 function prettyBoss(t:string){return t==="COIL_STRIKER"?"COIL STRIKER":t==="LACE_MONITOR"?"LACE MONITOR":"COBRA SENTINEL";}

@@ -286,7 +286,7 @@ window.setTimeout(()=>{
     if(!wheel||idx<0)return;
     // Conic sectors are 60 degrees wide and start at the top. Their centers are
     // 30,90,150... degrees, hence 330 - index*60 to land the chosen center at 0.
-    wheel.style.setProperty("--spin-angle",`${1440+330-idx*60}deg`);
+    // main.ts owns the exact deterministic wheel landing angle.
     wheel.dataset.reward=String(d.reward);
   });
 

@@ -29,6 +29,12 @@ export function applyPhase1Balance(RoomClass: any) {
     return 4 * Math.pow(1.22, (w - 50) / 10);
   };
 
+  // Round enemies keep Wave 1 damage, but gain only 65% of the previous growth.
+  // Bosses deliberately keep the original damageScale progression.
+  const roundDamageScale = (wave:number) => {
+    const full = damageScale(wave);
+    return 0.5 + (full - 0.5) * 0.65;
+  };
   // Lower starting cash without changing room lifecycle behaviour.
   const originalResetRun = p.resetRun;
   p.resetRun = function () {
@@ -102,11 +108,12 @@ export function applyPhase1Balance(RoomClass: any) {
   // Scale incoming enemy damage by source without adding entities/network load.
   const originalDamageTank = p.damageTank;
   p.damageTank = function (amount: number, source: string, x: number, y: number) {
-    const scale = damageScale(this.wave);
+    const scale = roundDamageScale(this.wave);
+    const bossScale = damageScale(this.wave);
     if (source === "bite") amount = Math.max(5, Math.round(10 * scale));
     else if (source === "venom") amount = Math.max(7, Math.round(11 * scale));
     else if (source === "explosion") amount = Math.max(10, Math.round(14 * scale));
-    else if (source === "boss") amount = Math.max(28, Math.round(28 * Math.sqrt(scale)));
+    else if (source === "boss") amount = Math.max(28, Math.round(28 * Math.sqrt(bossScale)));
     return originalDamageTank.call(this, amount, source, x, y);
   };
 

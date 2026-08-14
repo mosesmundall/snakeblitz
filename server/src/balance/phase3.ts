@@ -42,7 +42,7 @@ export function applyPhase3Balance(RoomClass: any) {
     return 10*Math.pow(1.45,(w-50)/10);
   };
 
-  const damageScale = (wave:number) => {
+  const rawDamageScale = (wave:number) => {
     const w=Math.max(1,wave);
     if(w<=10)return lerp(.5,1,(w-1)/9);
     if(w<=20)return lerp(1,1.6,(w-10)/10);
@@ -51,6 +51,7 @@ export function applyPhase3Balance(RoomClass: any) {
     if(w<=50)return lerp(3,4,(w-40)/10);
     return 4*Math.pow(1.22,(w-50)/10);
   };
+  const damageScale = (wave:number) => { const full=rawDamageScale(wave); return .5+(full-.5)*.65; };
 
   const round5=(v:number)=>Math.round(v/5)*5;
   const round50=(v:number)=>Math.round(v/50)*50;
@@ -261,9 +262,9 @@ export function applyPhase3Balance(RoomClass: any) {
   p.repairSnapshot=function(){
     const late=Math.max(0,this.wave-12);
     const cost=round5(180+this.wave*24+4*Math.pow(late,1.22));
-    return {cost,restore:35,canBuy:this.phase==="intermission"&&this.cash>=cost&&this.tank.health<this.tank.maxHealth-.5};
+    const restore=Math.max(1,Math.round(this.tank.maxHealth*.35));
+    return {cost,restore,canBuy:this.phase==="intermission"&&this.cash>=cost&&this.tank.health<this.tank.maxHealth-.5};
   };
-
   function chooseAdvanced(room:any):AdvancedClass|undefined{
     const w=room.wave as number;
     const choices:Array<[AdvancedClass,number]>=[];

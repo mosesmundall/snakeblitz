@@ -9,7 +9,7 @@ export function applyPhase2Balance(RoomClass: any) {
 
   type P2Class = "GOLDEN" | "HEALER" | "RATTLER" | "ARMOURED" | "CHARGER" | "ALPHA";
 
-  const damageScale = (wave: number) => {
+  const rawDamageScale = (wave: number) => {
     const w = Math.max(1, wave);
     const lerp = (a:number,b:number,t:number)=>a+(b-a)*Math.max(0,Math.min(1,t));
     if (w <= 10) return lerp(.5, 1, (w - 1) / 9);
@@ -19,6 +19,7 @@ export function applyPhase2Balance(RoomClass: any) {
     if (w <= 50) return lerp(3, 4, (w - 40) / 10);
     return 4 * Math.pow(1.22, (w - 50) / 10);
   };
+  const damageScale = (wave:number) => { const full=rawDamageScale(wave); return .5+(full-.5)*.65; };
 
   const classCaps: Record<P2Class,number> = {
     GOLDEN:2, HEALER:3, RATTLER:1, ARMOURED:5, CHARGER:3, ALPHA:2,
