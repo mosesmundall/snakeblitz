@@ -599,3 +599,78 @@ canvas { display: block; }
   .gameover-actions{grid-template-columns:1fr}
 }
 .leaderboard-row.current-run{border-color:rgba(239,201,94,.75)!important;box-shadow:0 0 0 1px rgba(239,201,94,.18),0 0 22px rgba(218,170,58,.08)}
+
+/* ===== Snake Blitz Beta + credits + death quips ===== */
+.game-title{
+  position:relative;
+  display:inline-block;
+}
+.beta-stamp{
+  position:absolute;
+  top:-10px;
+  right:-54px;
+  transform:rotate(12deg);
+  padding:2px 7px 3px;
+  border:2px solid #df4b43;
+  border-radius:3px;
+  color:#ef6259;
+  background:rgba(44,8,7,.32);
+  box-shadow:0 0 12px rgba(223,75,67,.13);
+  font-family:"Arial Black",Arial,sans-serif;
+  font-size:11px;
+  font-style:normal;
+  font-weight:950;
+  line-height:1;
+  letter-spacing:.13em;
+  text-shadow:0 1px 0 rgba(0,0,0,.4);
+  pointer-events:none;
+}
+.credits-block{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  flex-wrap:wrap;
+  gap:4px 11px;
+  color:#68766c;
+  font-size:8px;
+  line-height:1.35;
+  letter-spacing:.04em;
+}
+.credits-block strong{
+  color:#8d998f;
+  font-size:7px;
+  letter-spacing:.15em;
+}
+.lobby-credits{
+  margin-top:13px;
+  padding-top:10px;
+  border-top:1px solid rgba(255,255,255,.055);
+}
+.gameover-credits{
+  margin-top:13px;
+  padding-top:10px;
+  border-top:1px solid rgba(255,255,255,.055);
+}
+.death-quip{
+  width:min(560px,92%);
+  min-height:34px;
+  margin:7px auto 18px;
+  color:#d9c27e;
+  font-size:12px;
+  font-weight:750;
+  line-height:1.45;
+  text-align:center;
+}
+.death-quip::before{
+  content:"CAUSE OF DEFEAT  â€¢  ";
+  color:#817b66;
+  font-size:8px;
+  font-weight:950;
+  letter-spacing:.12em;
+}
+
+@media(max-width:560px){
+  .beta-stamp{top:-7px;right:-43px;font-size:9px;padding:2px 5px}
+  .credits-block{gap:3px 7px;font-size:7px}
+  .death-quip{font-size:10px;margin-bottom:13px}
+}

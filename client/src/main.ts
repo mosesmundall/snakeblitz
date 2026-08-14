@@ -20,6 +20,7 @@ const controlsText=$("#controls-text"),waitingBanner=$("#waiting-banner"),eventB
 const boostHud=$("#boost-hud"),boostName=$("#boost-name"),boostCount=$("#boost-count");
 const shopOverlay=$("#shop-overlay"),shopCash=$("#shop-cash"),shopTimer=$("#shop-timer"),shopClearMultiplier=$("#shop-clear-multiplier"),shopSubtitle=$("#shop-subtitle"),shopRoles=$("#shop-roles"),shopBuildSummary=$("#shop-build-summary"),upgradeGrid=$("#upgrade-grid"),buyRepairButton=$<HTMLButtonElement>("#buy-repair"),repairDescription=$("#repair-description"),readyPlayer1=$("#ready-player-1"),readyPlayer2=$("#ready-player-2"),shopMessage=$("#shop-message"),shopReadyButton=$<HTMLButtonElement>("#shop-ready");
 const bossWheel=$("#boss-wheel-overlay"),wheel=$("#reward-wheel"),bossRewardResult=$("#boss-reward-result"),bossRewardDesc=$("#boss-reward-desc"),spinBoss=$<HTMLButtonElement>("#spin-boss-reward"),continueBoss=$<HTMLButtonElement>("#continue-after-boss");
+const deathQuip=$("#death-quip");
 const gameOver=$("#game-over"),restartButton=$<HTMLButtonElement>("#restart-game"),backHomeButton=$<HTMLButtonElement>("#back-home"),resultWave=$("#result-wave"),resultScore=$("#result-score"),resultKills=$("#result-kills"),resultHeadshots=$("#result-headshots"),resultCash=$("#result-cash"),resultLeaderboard=$("#result-leaderboard"),resultLeaderboardRank=$("#result-leaderboard-rank");
 const openLeaderboardButton=$<HTMLButtonElement>("#open-leaderboard"),closeLeaderboardButton=$<HTMLButtonElement>("#close-leaderboard"),refreshLeaderboardButton=$<HTMLButtonElement>("#refresh-leaderboard"),leaderboardOverlay=$("#leaderboard-overlay"),leaderboardList=$("#leaderboard-list");
 const musicButtons=[...document.querySelectorAll<HTMLButtonElement>(".music-toggle")];
@@ -30,6 +31,7 @@ let game:Phaser.Game|undefined,bannerTimeout:number|undefined,shopMessageTimeout
 let lastUiUpdateAt=0,lastUiPhase:GameSnapshot["phase"]|undefined;
 let bossSpinInProgress=false,bossSpinToken=0;
 const upgradeCards=new Map<UpgradeId,UpgradeCardElements>();
+let lastTankHitSource="snake";
 
 nameInput.value=localStorage.getItem("snakeBlitzName")??localStorage.getItem("snakeTankName")??"";
 localName1.value="";localName2.value="";
@@ -109,16 +111,82 @@ network.addEventListener("boss_reward",e=>{
   requestAnimationFrame(()=>wheel.classList.add("spinning"));
   window.setTimeout(finish,2350);
 });network.addEventListener("boost_used",e=>{const d=(e as CustomEvent<any>).detail;showBanner(`${d.automatic?"AUTO-":""}${d.name.toUpperCase()} ACTIVATED`,1800);});
+network.addEventListener("tank_hit",e=>{lastTankHitSource=String((e as CustomEvent<any>).detail?.source??"snake");});
 network.addEventListener("game_over",e=>{
   shopOverlay.classList.add("hidden");bossWheel.classList.add("hidden");
   const d=(e as CustomEvent<any>).detail;
   resultWave.textContent=String(d.wave);resultScore.textContent=d.score.toLocaleString();resultCash.textContent=`$${(d.cashCollected??d.cash).toLocaleString()}`;resultKills.textContent=d.kills.toLocaleString();resultHeadshots.textContent=d.headshots.toLocaleString();
+  deathQuip.textContent=buildDeathQuip(latestSnapshot?.players??[],lastTankHitSource);
   resultLeaderboardRank.textContent=d.leaderboardRank?`NEW #${d.leaderboardRank} ALL-TIME`:"";
   if(Array.isArray(d.leaderboard))renderLeaderboard(resultLeaderboard,d.leaderboard,d.leaderboardRank??null);else void loadLeaderboard(resultLeaderboard);
   setTimeout(()=>gameOver.classList.remove("hidden"),450);
 });
 
 
+function buildDeathQuip(players:GameSnapshot["players"],source:string){
+  const names=players.map(p=>p.name).filter(Boolean);
+  const team=names.length>=2?`${names[0]} & ${names[1]}`:names[0]??"The team";
+  const generic=[
+    "tried to become friends with the snakes",
+    "brought a tank to a snake fight and somehow lost",
+    "discovered that 'one more wave' was not a defensive strategy",
+    "tested the tank's snake resistance a little too thoroughly",
+    "zigged at exactly the same time the snakes zigged",
+    "ran out of armour, road, and good ideas",
+    "briefly forgot which side the snakes were on",
+    "chose confidence over self-preservation",
+    "found the exact limit of the armour upgrade",
+    "gave the local wildlife one chance too many",
+  ];
+  const bite=[
+    "got a little too close to the local wildlife",
+    "learned that snakes do not respect personal space",
+    "attempted an extremely hands-on snake inspection",
+    "mistook biting distance for a safe viewing distance",
+  ];
+  const venom=[
+    "learned why the green stuff comes with a warning",
+    "failed the world's least pleasant venom taste test",
+    "discovered that poison damage is, in fact, damage",
+    "stayed in the splash zone for one second too long",
+  ];
+  const explosive=[
+    "stood next to the snake that was very clearly about to explode",
+    "turned one small explosion into a very large problem",
+    "proved that 'it probably won't explode' is not a plan",
+    "parked in the blast radius and committed to the decision",
+  ];
+  const boss=[
+    "challenged the boss to a close-range discussion",
+    "found out why the big health bar was a warning",
+    "gave the boss exactly the opening it was waiting for",
+    "made the boss fight considerably more personal than necessary",
+  ];
+  const charger=[
+    "tried to play chicken with a charging snake",
+    "saw the charge coming and remained admirably optimistic",
+    "learned that the red warning was not decorative",
+  ];
+
+  const key=source.toLowerCase();
+  const pool=key.includes("boss")?boss:
+    key.includes("venom")||key.includes("poison")?venom:
+    key.includes("explosion")||key.includes("bomber")?explosive:
+    key.includes("charger")?charger:
+    key.includes("bite")?bite:generic;
+
+  const endings=[
+    ".",
+    ". The snakes were unimpressed.",
+    ". A bold strategy.",
+    ". It made sense at the time.",
+    ". The armour would like a word.",
+  ];
+
+  const reason=pool[Math.floor(Math.random()*pool.length)];
+  const ending=endings[Math.floor(Math.random()*endings.length)];
+  return `${team} went down because they ${reason}${ending}`;
+}
 async function loadLeaderboard(target:HTMLElement){
   target.innerHTML='<div class="leaderboard-loading">Loading leaderboard…</div>';
   try{const entries=await network.getLeaderboard();renderLeaderboard(target,entries,null);}catch(error){console.error(error);target.innerHTML='<div class="leaderboard-error">Leaderboard is temporarily unavailable.</div>';}

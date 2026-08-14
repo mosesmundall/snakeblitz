@@ -10,7 +10,7 @@
 <main id="app">
   <section id="lobby" class="panel lobby-panel">
     <div class="eyebrow">TWO-PLAYER CO-OP SURVIVAL</div>
-    <h1>SNAKE <span>BLITZ</span></h1>
+    <h1 class="game-title">SNAKE <span>BLITZ</span><em class="beta-stamp">BETA</em></h1>
     <p class="tagline">One tank. Two jobs. Swap every wave. Blitz the horde before your cash multiplier collapses.</p>
 
     <div class="mode-switch" role="tablist">
@@ -44,6 +44,11 @@
 
     <div class="phase-badge">SNAKE BLITZ • RELEASE CANDIDATE</div>
     <p id="lobby-status" class="status">Choose online code play or one-device local co-op.</p>
+    <div class="credits-block lobby-credits" aria-label="Game credits">
+      <strong>CREDITS</strong>
+      <span>Moses Mundall - Developer</span>
+      <span>Ryan Miller - Developer</span>
+    </div>
   </section>
 
   <section id="game-shell" class="hidden">
@@ -83,7 +88,7 @@
 
     <div id="game-over" class="game-over hidden">
       <div class="game-over-card">
-        <div class="eyebrow danger">TANK DESTROYED</div><h2>RUN OVER</h2>
+        <div class="eyebrow danger">TANK DESTROYED</div><h2>RUN OVER</h2><p id="death-quip" class="death-quip"></p>
         <div class="results-grid"><div><span>Wave reached</span><strong id="result-wave">1</strong></div><div><span>Score</span><strong id="result-score">0</strong></div><div><span>Enemies destroyed</span><strong id="result-kills">0</strong></div><div><span>Headshots</span><strong id="result-headshots">0</strong></div><div><span>Cash recovered</span><strong id="result-cash">$0</strong></div></div>
         <section class="gameover-leaderboard">
           <div class="leaderboard-title-row"><div><span class="eyebrow">ALL-TIME</span><h3>TOP 10 TEAMS</h3></div><strong id="result-leaderboard-rank" class="rank-callout"></strong></div>
@@ -91,6 +96,11 @@
         </section>
         <div class="audio-settings gameover-audio" aria-label="Audio settings"><button class="audio-toggle music-toggle" type="button" aria-pressed="true">MUSIC • ON</button><button class="audio-toggle sfx-toggle" type="button" aria-pressed="true">SFX • ON</button></div>
         <div class="gameover-actions"><button id="restart-game" class="primary">Run it again</button><button id="back-home" type="button">Back to homepage</button></div>
+        <div class="credits-block gameover-credits" aria-label="Game credits">
+          <strong>CREDITS</strong>
+          <span>Moses Mundall - Developer</span>
+          <span>Ryan Miller - Developer</span>
+        </div>
       </div>
     </div>
     <div class="controls-hint hud"><span id="controls-text">Waiting for role assignment…</span></div>
