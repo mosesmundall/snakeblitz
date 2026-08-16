@@ -104,6 +104,7 @@ export class TankRoom extends Room {
   private previousWaveType:WaveType="NORMAL"; private phaseTimeLeftMs=0; private waveElapsedMs=0; private lastClearMultiplier=10;
   private score=0; private cash=0; private cashCollected=0; private kills=0; private headshots=0;
   private readyPlayers=new Set<string>(); private pendingBossReward?:BoostType; private selectedBoostIndex=0;
+  private reconnectingSessions=new Set<string>();
   private reviveCharges=0; private speedBoostMs=0; private bossReinforcements=0; private bossSequenceIndex=0;
   private boostInventory:Record<BoostType,number>={SPEED:0,MEDKIT:0,REVIVE:0,BOMB:0,NUKE:0,CASH_BONUS:0};
   private upgradeLevels:Record<UpgradeId,number>={AP_AMMO:0,AUTOLOADER:0,ENGINE:0,ARMOR:0,HV_SHELLS:0,SCAVENGER:0,ORDNANCE:0};
@@ -150,19 +151,44 @@ export class TankRoom extends Room {
     this.broadcastSnapshot();
   }
 
-  onLeave(client:Client){
+  onDrop(client:Client,code:number){
+    this.reconnectingSessions.add(client.sessionId);
+    if(this.mode==="local"){
+      this.driveInputs.set("local-driver",{throttle:0,turn:0});
+      this.gunInputs.set("local-gunner",{angle:this.tank.turretRotation,firing:false});
+    }else{
+      this.driveInputs.set(client.sessionId,{throttle:0,turn:0});
+      const gun=this.gunInputs.get(client.sessionId)??{angle:this.tank.turretRotation,firing:false};
+      gun.firing=false;this.gunInputs.set(client.sessionId,gun);
+    }
+    console.warn(`[Snake Blitz] temporary connection drop room=${this.roomId} session=${client.sessionId} code=${code}; pausing run for reconnect`);
+    this.broadcast("connection_status",{paused:true,reason:"reconnecting",sessionId:client.sessionId,graceSeconds:30});
+    this.allowReconnection(client,30);
+  }
+
+  onReconnect(client:Client){
+    this.reconnectingSessions.delete(client.sessionId);
+    console.log(`[Snake Blitz] reconnected room=${this.roomId} session=${client.sessionId}`);
+    client.send("room_info",{roomId:this.roomId,sessionId:client.sessionId,mode:this.mode});
+    this.broadcast("connection_status",{paused:this.reconnectingSessions.size>0,reason:this.reconnectingSessions.size?"reconnecting":"resumed",sessionId:client.sessionId});
+    this.broadcastSnapshot();
+  }
+
+  onLeave(client:Client,code?:number){
+    this.reconnectingSessions.delete(client.sessionId);
+    console.warn(`[Snake Blitz] permanent leave room=${this.roomId} session=${client.sessionId} code=${code??0}`);
     if(this.mode==="local"){ this.players.clear(); this.phase="waiting"; return; }
     this.players.delete(client.sessionId); this.driveInputs.delete(client.sessionId); this.gunInputs.delete(client.sessionId); this.readyPlayers.delete(client.sessionId);
     if(this.players.size<2){this.phase="waiting";this.bullets=[];this.enemyProjectiles=[];this.snakes.clear();this.boss=undefined;this.cashCrates.clear();this.spawnRemaining=0;this.unlock();}
+    this.broadcast("connection_status",{paused:false,reason:"player_left",sessionId:client.sessionId});
     this.broadcastSnapshot();
-  }
-  async onDispose(){
+  }  async onDispose(){
     if(this.mode==="online")await this.presence.srem(this.lobbyChannel,this.roomId);
   }
 
   private updateGame(deltaMs:number){
     const dt=Math.min(deltaMs,50)/1000;
-    if(this.players.size===2){
+    if(this.players.size===2&&this.reconnectingSessions.size===0){
       if(this.phase==="combat"){
         this.waveElapsedMs+=deltaMs; this.updateTank(dt); this.updateGun(deltaMs); this.updateSpawning(deltaMs); this.updateSnakes(deltaMs,dt); this.updateBoss(deltaMs,dt); this.updateBullets(deltaMs,dt); this.updateEnemyProjectiles(deltaMs,dt); this.updateCash(deltaMs); this.checkWaveComplete();
       } else if(this.phase==="intermission"){ this.phaseTimeLeftMs-=deltaMs; if(this.phaseTimeLeftMs<=0)this.startWave(this.wave+1); }
@@ -175,6 +201,7 @@ export class TankRoom extends Room {
     Object.assign(this.tank,{x:WORLD_WIDTH/2,y:WORLD_HEIGHT/2,rotation:-Math.PI/2,turretRotation:-Math.PI/2,maxHealth:BASE_TANK_MAX_HEALTH,health:BASE_TANK_MAX_HEALTH});
     this.bullets=[];this.enemyProjectiles=[];this.snakes.clear();this.boss=undefined;this.cashCrates.clear();this.nextBulletId=1;this.nextEnemyProjectileId=1;this.nextSnakeId=1;this.nextCashId=1;
     this.fireCooldownMs=0;this.wave=0;this.waveType="NORMAL";this.previousWaveType="NORMAL";this.phase="waiting";this.phaseTimeLeftMs=0;this.waveElapsedMs=0;this.lastClearMultiplier=10;
+    this.reconnectingSessions.clear();
     this.score=0;this.cash=250;this.cashCollected=0;this.kills=0;this.headshots=0;this.readyPlayers.clear();this.pendingBossReward=undefined;this.selectedBoostIndex=0;this.reviveCharges=0;this.speedBoostMs=0;this.bossReinforcements=0;this.bossSequenceIndex=0;
     for(const k of Object.keys(this.boostInventory) as BoostType[])this.boostInventory[k]=0;
     for(const d of UPGRADE_DEFINITIONS)this.upgradeLevels[d.id]=0; this.resetInputs();
@@ -258,11 +285,11 @@ export class TankRoom extends Room {
   }
 
   private rebuildSnakeGrid(list:Iterable<SnakeEnemy>){this.snakeGrid.clear();for(const enemy of this.snakes.values()){const cx=Math.floor(enemy.x/this.snakeGridCell),cy=Math.floor(enemy.y/this.snakeGridCell),key=this.gridKey(cx,cy);let bucket=this.snakeGrid.get(key);if(!bucket){bucket=[];this.snakeGrid.set(key,bucket);}bucket.push(enemy);}}
-  private nearbySnakes(x:number,y:number,radiusCells:number){const out:SnakeEnemy[]=[];const cx=Math.floor(x/this.snakeGridCell),cy=Math.floor(y/this.snakeGridCell);for(let oy=-radiusCells;oy<=radiusCells;oy++)for(let ox=-radiusCells;ox<=radiusCells;ox++){const bucket=this.snakeGrid.get(this.gridKey(cx+ox,cy+oy));if(bucket)out.push(...bucket);}return out;}
+  private nearbySnakes(x:number,y:number,radiusCells:number){const out:SnakeEnemy[]=[];const cx=Math.floor(x/this.snakeGridCell),cy=Math.floor(y/this.snakeGridCell);for(let oy=-radiusCells;oy<=radiusCells;oy++)for(let ox=-radiusCells;ox<=radiusCells;ox++){const bucket=this.snakeGrid.get(this.gridKey(cx+ox,cy+oy));if(bucket)for(const enemy of bucket)out.push(enemy);}return out;}
   private gridKey(cx:number,cy:number){return cx+cy*10000;}
   private fireVenom(s:SnakeEnemy){const a=Math.atan2(this.tank.y-s.y,this.tank.x-s.x),speed=390+Math.min(180,this.wave*6);this.enemyProjectiles.push({id:this.nextEnemyProjectileId++,x:s.x,y:s.y,vx:Math.cos(a)*speed,vy:Math.sin(a)*speed,radius:9,ageMs:0,kind:"VENOM",damage:Math.min(22,8+Math.floor(this.wave*.45))});this.broadcast("venom_shot",{x:s.x,y:s.y,angle:a});}
   private updateEnemyProjectiles(deltaMs:number,dt:number){const keep:EnemyProjectile[]=[];for(const p of this.enemyProjectiles){p.x+=p.vx*dt;p.y+=p.vy*dt;p.ageMs+=deltaMs;if(p.ageMs>4000)continue;if(this.distanceSq(p.x,p.y,this.tank.x,this.tank.y)<(TANK_RADIUS+p.radius)**2){this.damageTank(p.damage,"venom",p.x,p.y);continue;}keep.push(p);}this.enemyProjectiles=keep;}
-  private resolveSnakeObstacleCollisions(s:SnakeEnemy){for(const o of OBSTACLES){const dx=s.x-o.x,dy=s.y-o.y,d=Math.hypot(dx,dy)||.001,min=o.radius+s.bodyRadius+4;if(d<min){const p=min-d;s.x+=dx/d*p;s.y+=dy/d*p;s.rotation+=this.randomRange(-.25,.25);}}}
+  private resolveSnakeObstacleCollisions(s:SnakeEnemy){for(const o of OBSTACLES){const dx=s.x-o.x,dy=s.y-o.y,min=o.radius+s.bodyRadius+4,d2=dx*dx+dy*dy;if(d2<min*min){const d=Math.sqrt(d2)||.001,p=min-d;s.x+=dx/d*p;s.y+=dy/d*p;s.rotation+=this.randomRange(-.25,.25);}}}
   private killSnake(s:SnakeEnemy,exploded:boolean){if(!this.snakes.has(s.id))return;this.snakes.delete(s.id);this.kills++;this.score+=70+this.wave*12;if(s.variant==="CASH")this.spawnCashAt(s.x,s.y,1.6);this.broadcast("snake_death",{snakeId:s.id,x:s.x,y:s.y,exploded,variant:s.variant});}
   private explodeSnake(s:SnakeEnemy,triggered:boolean){if(!this.snakes.has(s.id))return;const x=s.x,y=s.y;this.killSnake(s,true);const radius=115+Math.min(45,this.wave);let tankDamage=0;if(this.distanceSq(x,y,this.tank.x,this.tank.y)<radius*radius){tankDamage=Math.min(32,14+Math.floor(this.wave*.6));this.damageTank(tankDamage,"explosion",x,y);}for(const other of this.nearbySnakes(x,y,1))if(this.snakes.has(other.id)&&this.distanceSq(x,y,other.x,other.y)<radius*radius){other.hp-=Math.round(other.maxHp*.62);if(other.hp<=0)this.killSnake(other,true);}this.broadcast("explosion_fx",{x,y,radius,tankDamage,sourceSnakeId:s.id,triggered});}
 

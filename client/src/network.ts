@@ -9,10 +9,27 @@ function defaultServerUrl() {
   return `${protocol}//${hostname}:2567`;
 }
 
+type ConnectionState = "idle" | "connected" | "reconnecting" | "left";
+
 export class GameNetwork extends EventTarget {
   readonly serverUrl = defaultServerUrl();
   readonly client = new Client(this.serverUrl);
   room?: Room; snapshot?: GameSnapshot; sessionId = "";
+  connectionState:ConnectionState="idle";
+  lastSnapshotAt=0;
+  private staleNotified=false;
+
+  constructor(){
+    super();
+    window.setInterval(()=>{
+      if(!this.room||this.connectionState!=="connected"||!this.lastSnapshotAt)return;
+      const age=performance.now()-this.lastSnapshotAt;
+      if(age>=1500&&!this.staleNotified){
+        this.staleNotified=true;
+        this.dispatchEvent(new CustomEvent("connection_stalled",{detail:{ageMs:Math.round(age)}}));
+      }
+    },500);
+  }
 
   async createGame(name: string) {
     const room = await this.client.create("snake_blitz", { mode: "online", name });
@@ -34,30 +51,39 @@ export class GameNetwork extends EventTarget {
   }
   async leaveGame() {
     const room = this.room;
-    this.room = undefined; this.snapshot = undefined; this.sessionId = "";
+    this.room = undefined; this.snapshot = undefined; this.sessionId = ""; this.connectionState="idle";this.lastSnapshotAt=0;this.staleNotified=false;
     if (room) {
       try { await room.leave(); } catch { /* room may already be closed */ }
     }
   }
-  sendDrive(throttle: number, turn: number) { this.room?.send("drive", { throttle, turn }); }
-  sendAim(angle: number) { this.room?.send("aim", { angle }); }
-  sendFiring(firing: boolean) { this.room?.send("firing", { firing }); }
-  buyUpgrade(id: string) { this.room?.send("buy_upgrade", { id }); }
-  buyRepair() { this.room?.send("buy_repair"); }
-  setShopReady(ready: boolean) { this.room?.send("shop_ready", { ready }); }
-  cycleBoost(direction = 1) { this.room?.send("cycle_boost", { direction }); }
-  useBoost() { this.room?.send("use_boost"); }
-  spinBossReward() { this.room?.send("spin_boss_reward"); }
-  continueAfterBoss() { this.room?.send("continue_after_boss"); }
-  restart() { this.room?.send("restart"); }
+
+  private canSend(){return Boolean(this.room)&&this.connectionState==="connected";}
+  sendDrive(throttle: number, turn: number) { if(this.canSend())this.room!.send("drive", { throttle, turn }); }
+  sendAim(angle: number) { if(this.canSend())this.room!.send("aim", { angle }); }
+  sendFiring(firing: boolean) { if(this.canSend())this.room!.send("firing", { firing }); }
+  buyUpgrade(id: string) { if(this.canSend())this.room!.send("buy_upgrade", { id }); }
+  buyRepair() { if(this.canSend())this.room!.send("buy_repair"); }
+  setShopReady(ready: boolean) { if(this.canSend())this.room!.send("shop_ready", { ready }); }
+  cycleBoost(direction = 1) { if(this.canSend())this.room!.send("cycle_boost", { direction }); }
+  useBoost() { if(this.canSend())this.room!.send("use_boost"); }
+  spinBossReward() { if(this.canSend())this.room!.send("spin_boss_reward"); }
+  continueAfterBoss() { if(this.canSend())this.room!.send("continue_after_boss"); }
+  restart() { if(this.canSend())this.room!.send("restart"); }
 
   private attach(room: Room) {
-    this.room = room; this.sessionId = room.sessionId;
+    this.room = room; this.sessionId = room.sessionId;this.connectionState="connected";this.lastSnapshotAt=performance.now();this.staleNotified=false;
     room.onMessage("room_info", (payload: any) => { this.sessionId = payload.sessionId ?? room.sessionId; this.dispatchEvent(new CustomEvent("room_info", { detail: payload })); });
-    room.onMessage("snapshot", (snapshot: GameSnapshot) => { this.snapshot = snapshot; this.dispatchEvent(new CustomEvent("snapshot", { detail: snapshot })); });
-    const passthrough = ["shot_fx","impact_fx","hit_fx","snake_death","explosion_fx","tank_hit","cash_pickup","roles_assigned","roles_swapped","wave_complete","wave_start","game_over","upgrade_purchased","repair_purchased","purchase_denied","shop_ready_changed","boss_phase","boss_defeated","boss_reward","boost_used","boost_denied","venom_shot"];
+    room.onMessage("snapshot", (snapshot: GameSnapshot) => {
+      this.snapshot = snapshot;this.lastSnapshotAt=performance.now();
+      if(this.staleNotified){this.staleNotified=false;this.dispatchEvent(new Event("connection_recovered"));}
+      this.dispatchEvent(new CustomEvent("snapshot", { detail: snapshot }));
+    });
+    const passthrough = ["shot_fx","impact_fx","hit_fx","snake_death","explosion_fx","tank_hit","cash_pickup","roles_assigned","roles_swapped","wave_complete","wave_start","game_over","upgrade_purchased","repair_purchased","purchase_denied","shop_ready_changed","boss_phase","boss_defeated","boss_reward","boost_used","boost_denied","venom_shot","connection_status"];
     for (const name of passthrough) room.onMessage(name, (payload: any) => this.dispatchEvent(new CustomEvent(name, { detail: payload })));
-    room.onLeave(() => this.dispatchEvent(new Event("left")));
+    room.onDrop((code:number)=>{this.connectionState="reconnecting";this.dispatchEvent(new CustomEvent("connection_drop",{detail:{code}}));});
+    room.onReconnect(()=>{this.connectionState="connected";this.sessionId=room.sessionId;this.lastSnapshotAt=performance.now();this.staleNotified=false;this.dispatchEvent(new Event("reconnected"));});
+    room.onError((code:number,message?:string)=>this.dispatchEvent(new CustomEvent("connection_error",{detail:{code,message:message??"Connection error"}})));
+    room.onLeave((code?:number)=>{this.connectionState="left";this.dispatchEvent(new CustomEvent("left",{detail:{code:code??0}}));});
   }
 }
 export const network = new GameNetwork();

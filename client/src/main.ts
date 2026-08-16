@@ -17,6 +17,7 @@ const modeOnline=$<HTMLButtonElement>("#mode-online"), modeLocal=$<HTMLButtonEle
 const onlineSetup=$("#online-setup"), localSetup=$("#local-setup"), localName1=$<HTMLInputElement>("#local-name-1"), localName2=$<HTMLInputElement>("#local-name-2"), startLocal=$<HTMLButtonElement>("#start-local");
 const hudRoom=$("#hud-room"),hudWave=$("#hud-wave"),hudWaveType=$("#hud-wave-type"),hudTimer=$("#hud-timer"),hudEnemies=$("#hud-enemies"),hudRole=$("#hud-role"),hudScore=$("#hud-score"),hudCash=$("#hud-cash"),hudHealthText=$("#hud-health-text"),hudHealthFill=$("#hud-health-fill"),hudMultiplier=$("#hud-multiplier"),hudMultFill=$("#hud-mult-fill");
 const controlsText=$("#controls-text"),waitingBanner=$("#waiting-banner"),eventBanner=$("#event-banner");
+const connectionBanner=$("#connection-banner"),connectionBannerTitle=connectionBanner.querySelector<HTMLElement>("strong")!,connectionBannerText=connectionBanner.querySelector<HTMLElement>("span")!;
 const boostHud=$("#boost-hud"),boostName=$("#boost-name"),boostCount=$("#boost-count");
 const shopOverlay=$("#shop-overlay"),shopCash=$("#shop-cash"),shopTimer=$("#shop-timer"),shopClearMultiplier=$("#shop-clear-multiplier"),shopSubtitle=$("#shop-subtitle"),shopRoles=$("#shop-roles"),shopBuildSummary=$("#shop-build-summary"),upgradeGrid=$("#upgrade-grid"),buyRepairButton=$<HTMLButtonElement>("#buy-repair"),repairDescription=$("#repair-description"),readyPlayer1=$("#ready-player-1"),readyPlayer2=$("#ready-player-2"),shopMessage=$("#shop-message"),shopReadyButton=$<HTMLButtonElement>("#shop-ready");
 const bossWheel=$("#boss-wheel-overlay"),wheel=$("#reward-wheel"),bossRewardResult=$("#boss-reward-result"),bossRewardDesc=$("#boss-reward-desc"),spinBoss=$<HTMLButtonElement>("#spin-boss-reward"),continueBoss=$<HTMLButtonElement>("#continue-after-boss");
@@ -63,6 +64,15 @@ window.addEventListener("keydown",deathPopupEscapeHandler);
 buyRepairButton.onclick=()=>network.buyRepair();shopReadyButton.onclick=()=>{const s=latestSnapshot;if(!s||s.phase!=="intermission")return;const meReady=s.mode==="local"?s.readySessionIds.length>=2:s.readySessionIds.includes(network.sessionId);network.setShopReady(!meReady);audio.readyPing();};
 spinBoss.onclick=()=>{if(bossSpinInProgress)return;bossSpinInProgress=true;spinBoss.disabled=true;bossRewardResult.textContent="LOCKING REWARDâ€¦";bossRewardDesc.textContent="The server is selecting your reward.";network.spinBossReward();};continueBoss.onclick=()=>network.continueAfterBoss();
 
+function showConnectionState(title:string,text:string){connectionBannerTitle.textContent=title;connectionBannerText.textContent=text;connectionBanner.classList.remove("hidden");}
+function hideConnectionState(){connectionBanner.classList.add("hidden");}
+network.addEventListener("connection_drop",()=>showConnectionState("CONNECTION INTERRUPTED","Run paused â€” reconnecting automaticallyâ€¦"));
+network.addEventListener("reconnected",()=>{hideConnectionState();showBanner("RECONNECTED â€¢ RUN RESUMED",1400);});
+network.addEventListener("connection_stalled",()=>showConnectionState("SERVER CATCHING UP","No fresh game state received yet â€” holding your runâ€¦"));
+network.addEventListener("connection_recovered",()=>hideConnectionState());
+network.addEventListener("connection_status",e=>{const d=(e as CustomEvent<any>).detail;if(d?.paused)showConnectionState("PLAYER RECONNECTING","Run paused so nobody loses progressâ€¦");else if(d?.reason==="resumed")hideConnectionState();else if(d?.reason==="player_left")showConnectionState("PLAYER DISCONNECTED","The other player left the room.");});
+network.addEventListener("connection_error",e=>{const d=(e as CustomEvent<any>).detail;console.warn("Snake Blitz connection error",d);showConnectionState("CONNECTION PROBLEM",String(d?.message??"Trying to recover the connectionâ€¦"));});
+network.addEventListener("left",()=>{if(network.connectionState==="left")showConnectionState("CONNECTION CLOSED","The room connection ended. Return home or reload to start again.");});
 network.addEventListener("snapshot",e=>{
   const s=(e as CustomEvent<GameSnapshot>).detail;latestSnapshot=s;
   // Network snapshots can arrive faster than the DOM needs to repaint. Batching
