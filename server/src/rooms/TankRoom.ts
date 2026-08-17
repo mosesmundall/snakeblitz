@@ -108,6 +108,15 @@ export class TankRoom extends Room {
   private reviveCharges=0; private speedBoostMs=0; private bossReinforcements=0; private bossSequenceIndex=0;
   private boostInventory:Record<BoostType,number>={SPEED:0,MEDKIT:0,REVIVE:0,BOMB:0,NUKE:0,CASH_BONUS:0};
   private upgradeLevels:Record<UpgradeId,number>={AP_AMMO:0,AUTOLOADER:0,ENGINE:0,ARMOR:0,HV_SHELLS:0,SCAVENGER:0,ORDNANCE:0};
+  // Developer test rooms are authorised only by a server-side secret.
+  // They can jump directly to a target wave, but can never submit leaderboard results.
+  private testMode=false;
+  private testWave=1;
+  private testMaxUpgrades=true;
+  private testFullHealth=true;
+  private testEquipment=true;
+  private testLastBossId:number|undefined;
+  private testLastBossHp:number|undefined;
 
   messages = {
     drive:(client:Client,p:any)=>{ if(!this.canControl(client,"driver"))return; const key=this.controllerKey(client,"driver"); this.driveInputs.set(key,{throttle:this.clamp(Number(p?.throttle??0),-1,1),turn:this.clamp(Number(p?.turn??0),-1,1)}); },
@@ -120,11 +129,12 @@ export class TankRoom extends Room {
     use_boost:(client:Client)=>this.useSelectedBoost(client),
     spin_boss_reward:(client:Client)=>{ if(this.phase!=="boss_reward"||this.pendingBossReward)return; this.pendingBossReward=this.rollBossReward(); this.boostInventory[this.pendingBossReward]++; this.broadcast("boss_reward",{reward:this.pendingBossReward,...BOOST_NAMES[this.pendingBossReward]}); },
     continue_after_boss:(_client:Client)=>{ if(this.phase!=="boss_reward"||!this.pendingBossReward)return; const before=this.tank.health; this.tank.health=Math.min(this.tank.maxHealth,this.tank.health+this.wave); this.broadcast("round_auto_heal",{wave:this.wave,restored:Math.round(this.tank.health-before),health:this.tank.health,maxHealth:this.tank.maxHealth}); this.openIntermission(); },
-    restart:(client:Client)=>{ if(this.phase!=="gameover")return; this.resetRun(); this.assignRandomStartingRoles(); this.startWave(1); },
+    restart:(client:Client)=>{ if(this.phase!=="gameover")return; this.startConfiguredRun(); },
   };
 
   async onCreate(options:any){
     this.mode=options?.mode==="local"?"local":"online";
+    this.configureTestMode(options);
     // Local co-op never needs a public four-character join code. Keeping the
     // default Colyseus roomId here also avoids touching Presence entirely.
     if(this.mode==="online")this.roomId=await this.generateRoomId();
@@ -140,13 +150,13 @@ export class TankRoom extends Room {
       this.players.set("local-2",{sessionId:"local-2",name:n2,role:"gunner",ownerSessionId:client.sessionId});
       this.driveInputs.set("local-driver",{throttle:0,turn:0}); this.gunInputs.set("local-gunner",{angle:this.tank.turretRotation,firing:false});
       client.send("room_info",{roomId:this.roomId,sessionId:client.sessionId,mode:"local"});
-      this.lock(); this.resetRun(); this.assignRandomStartingRoles(); this.startWave(1);
+      this.lock(); this.startConfiguredRun();
     } else {
       const name=this.cleanName(options?.name);
       this.players.set(client.sessionId,{sessionId:client.sessionId,name,role:"driver",ownerSessionId:client.sessionId});
       this.driveInputs.set(client.sessionId,{throttle:0,turn:0}); this.gunInputs.set(client.sessionId,{angle:this.tank.turretRotation,firing:false});
       client.send("room_info",{roomId:this.roomId,sessionId:client.sessionId,mode:"online"});
-      if(this.players.size===2){ this.lock(); this.resetRun(); this.assignRandomStartingRoles(); this.startWave(1); }
+      if(this.players.size===2){ this.lock(); this.startConfiguredRun(); }
     }
     this.broadcastSnapshot();
   }
@@ -184,6 +194,77 @@ export class TankRoom extends Room {
     this.broadcastSnapshot();
   }  async onDispose(){
     if(this.mode==="online")await this.presence.srem(this.lobbyChannel,this.roomId);
+  }
+
+  private configureTestMode(options:any){
+    if(options?.testMode!==true)return;
+    const enabled=process.env.TEST_MODE_ENABLED==="true";
+    const expected=String(process.env.TEST_MODE_SECRET??"");
+    const supplied=String(options?.testSecret??"");
+    if(!enabled||expected.length<32||supplied!==expected)throw new Error("Test mode not authorised.");
+
+    const requestedWave=Math.floor(Number(options?.testWave));
+    this.testMode=true;
+    this.testWave=Number.isFinite(requestedWave)?this.clamp(requestedWave,1,200):1;
+    this.testMaxUpgrades=options?.testMaxUpgrades!==false;
+    this.testFullHealth=options?.testFullHealth!==false;
+    this.testEquipment=options?.testEquipment!==false;
+  }
+
+  private startConfiguredRun(){
+    this.resetRun();
+    this.assignRandomStartingRoles();
+    if(this.testMode)this.prepareTestRun();
+    this.startWave(this.testMode?this.testWave:1);
+  }
+
+  private prepareTestRun(){
+    if(!this.testMode)return;
+
+    if(this.testMaxUpgrades){
+      for(const d of UPGRADE_DEFINITIONS)this.upgradeLevels[d.id]=d.maxLevel;
+    }
+
+    // Plenty of cash allows armory/economy testing without changing score history.
+    this.cash=1000000;
+
+    if(this.testEquipment){
+      for(const k of Object.keys(this.boostInventory) as BoostType[])this.boostInventory[k]=k==="NUKE"?1:3;
+      // Phase 3 veteran equipment is intentionally accessed through `any`
+      // because that optional balance layer decorates TankRoom at runtime.
+      const extended=this as any;
+      if(this.testMaxUpgrades){
+        extended.p3BombRackInstalled=true;
+        extended.p3BombCharges=4;
+        extended.p3Medkits=3;
+      }
+    }
+
+    const maxHealth=this.combatStats().maxHealth;
+    this.tank.maxHealth=maxHealth;
+    this.tank.health=this.testFullHealth?maxHealth:Math.min(this.tank.health,maxHealth);
+    this.testLastBossId=undefined;
+    this.testLastBossHp=undefined;
+
+    console.warn(`[Snake Blitz] TEST MODE armed room=${this.roomId} mode=${this.mode} wave=${this.testWave} maxUpgrades=${this.testMaxUpgrades} equipment=${this.testEquipment}; leaderboard disabled`);
+  }
+
+  private observeTestBossHp(){
+    if(!this.testMode)return;
+    const b=this.boss;
+    if(!b){
+      this.testLastBossId=undefined;
+      this.testLastBossHp=undefined;
+      return;
+    }
+
+    if(this.testLastBossId===b.id&&this.testLastBossHp!=null&&b.hp>this.testLastBossHp+.5){
+      const previous=this.testLastBossHp;
+      console.warn(`[Snake Blitz] TEST boss HP increased room=${this.roomId} wave=${this.wave} boss=${b.type} ${previous.toFixed(1)} -> ${b.hp.toFixed(1)}`);
+      this.broadcast("test_boss_hp_increase",{wave:this.wave,type:b.type,previous,hp:b.hp,maxHp:b.maxHp});
+    }
+    this.testLastBossId=b.id;
+    this.testLastBossHp=b.hp;
   }
 
   private updateGame(deltaMs:number){
@@ -322,13 +403,17 @@ export class TankRoom extends Room {
   private endGame(){
     this.phase="gameover";this.bullets=[];this.enemyProjectiles=[];this.resetInputs();
     const names=[...this.players.values()].map(player=>player.name);
-    const result=leaderboardStore.submit({
-      players:[names[0]??"Player 1",names[1]??"Player 2"],
-      wave:this.wave,score:this.score,kills:this.kills,headshots:this.headshots,mode:this.mode,
-    });
+    const result=this.testMode
+      ? {rank:null as number|null,entries:leaderboardStore.getTop10()}
+      : leaderboardStore.submit({
+          players:[names[0]??"Player 1",names[1]??"Player 2"],
+          wave:this.wave,score:this.score,kills:this.kills,headshots:this.headshots,mode:this.mode,
+        });
+    if(this.testMode)console.warn(`[Snake Blitz] TEST MODE game over room=${this.roomId}; leaderboard submission skipped`);
     this.broadcast("game_over",{
       wave:this.wave,score:this.score,cash:this.cash,cashCollected:this.cashCollected,kills:this.kills,headshots:this.headshots,
       upgrades:{...this.upgradeLevels},leaderboardRank:result.rank,leaderboard:result.entries,
+      testMode:this.testMode,leaderboardSkipped:this.testMode,
     });
   }
 
@@ -352,7 +437,7 @@ export class TankRoom extends Room {
   private displayPurchaser(c:Client){if(this.mode==="local")return"Local team";return this.players.get(c.sessionId)?.name??"Player";}
   private inventoryArray(){return(Object.keys(this.boostInventory) as BoostType[]).map(type=>({type,name:BOOST_NAMES[type].name,count:this.boostInventory[type],description:BOOST_NAMES[type].description}));}
 
-  private broadcastSnapshot(){this.broadcast("snapshot",{roomId:this.roomId,mode:this.mode,world:{width:WORLD_WIDTH,height:WORLD_HEIGHT},players:this.rolePayload(),tank:{...this.tank},bullets:this.bullets.map(b=>({id:b.id,x:b.x,y:b.y,angle:Math.atan2(b.vy,b.vx),radius:b.radius,weaponTier:b.weaponTier})),enemyProjectiles:this.enemyProjectiles.map(p=>({id:p.id,x:p.x,y:p.y,vx:p.vx,vy:p.vy,kind:p.kind})),snakes:[...this.snakes.values()].map(s=>({id:s.id,x:s.x,y:s.y,rotation:s.rotation,hp:Math.max(0,s.hp),maxHp:s.maxHp,headRadius:s.headRadius,bodyRadius:s.bodyRadius,length:s.length,volatile:s.volatile,seed:s.seed,variant:s.variant,attackCooldownMs:s.attackCooldownMs})),boss:this.boss?{...this.boss}:undefined,cashCrates:[...this.cashCrates.values()].map(c=>({...c})),obstacles:OBSTACLES,phase:this.phase,wave:this.wave,waveType:this.waveType,timeLeftMs:Math.max(0,this.phaseTimeLeftMs),waveElapsedMs:this.waveElapsedMs,economyMultiplier:Number(this.economyMultiplier().toFixed(2)),lastClearMultiplier:this.lastClearMultiplier,snakesRemaining:this.snakes.size+this.spawnRemaining+(this.boss?1:0),snakesAlive:this.snakes.size,score:this.score,cash:Math.round(this.cash),cashCollected:Math.round(this.cashCollected),kills:this.kills,headshots:this.headshots,readySessionIds:[...this.readyPlayers],upgrades:this.upgradeSnapshot(),combatStats:this.combatStats(),repair:this.repairSnapshot(),boosts:this.inventoryArray(),selectedBoostIndex:this.selectedBoostIndex,pendingBossReward:this.pendingBossReward});}
+  private broadcastSnapshot(){this.observeTestBossHp();this.broadcast("snapshot",{roomId:this.roomId,mode:this.mode,testMode:this.testMode,testWave:this.testMode?this.testWave:undefined,world:{width:WORLD_WIDTH,height:WORLD_HEIGHT},players:this.rolePayload(),tank:{...this.tank},bullets:this.bullets.map(b=>({id:b.id,x:b.x,y:b.y,angle:Math.atan2(b.vy,b.vx),radius:b.radius,weaponTier:b.weaponTier})),enemyProjectiles:this.enemyProjectiles.map(p=>({id:p.id,x:p.x,y:p.y,vx:p.vx,vy:p.vy,kind:p.kind})),snakes:[...this.snakes.values()].map(s=>({id:s.id,x:s.x,y:s.y,rotation:s.rotation,hp:Math.max(0,s.hp),maxHp:s.maxHp,headRadius:s.headRadius,bodyRadius:s.bodyRadius,length:s.length,volatile:s.volatile,seed:s.seed,variant:s.variant,attackCooldownMs:s.attackCooldownMs})),boss:this.boss?{...this.boss}:undefined,cashCrates:[...this.cashCrates.values()].map(c=>({...c})),obstacles:OBSTACLES,phase:this.phase,wave:this.wave,waveType:this.waveType,timeLeftMs:Math.max(0,this.phaseTimeLeftMs),waveElapsedMs:this.waveElapsedMs,economyMultiplier:Number(this.economyMultiplier().toFixed(2)),lastClearMultiplier:this.lastClearMultiplier,snakesRemaining:this.snakes.size+this.spawnRemaining+(this.boss?1:0),snakesAlive:this.snakes.size,score:this.score,cash:Math.round(this.cash),cashCollected:Math.round(this.cashCollected),kills:this.kills,headshots:this.headshots,readySessionIds:[...this.readyPlayers],upgrades:this.upgradeSnapshot(),combatStats:this.combatStats(),repair:this.repairSnapshot(),boosts:this.inventoryArray(),selectedBoostIndex:this.selectedBoostIndex,pendingBossReward:this.pendingBossReward});}
 
   private spawnNearTankEdge(extra=520){const a=Math.random()*Math.PI*2,d=Math.max(extra,Math.min(920,560+Math.random()*340));return{x:this.clamp(this.tank.x+Math.cos(a)*d,35,WORLD_WIDTH-35),y:this.clamp(this.tank.y+Math.sin(a)*d,35,WORLD_HEIGHT-35)};}
   private randomSafePoint(min:number){for(let i=0;i<40;i++){const a=Math.random()*Math.PI*2,d=this.randomRange(min,700),x=this.clamp(this.tank.x+Math.cos(a)*d,100,WORLD_WIDTH-100),y=this.clamp(this.tank.y+Math.sin(a)*d,100,WORLD_HEIGHT-100);if(OBSTACLES.some(o=>Math.hypot(x-o.x,y-o.y)<o.radius+75))continue;return{x,y};}return{x:this.clamp(this.tank.x+300,100,WORLD_WIDTH-100),y:this.tank.y};}

@@ -39,7 +39,7 @@ export interface CombatStatsSnapshot {
 }
 export interface BoostInventoryItem { type: BoostType; name: string; count: number; description: string; }
 export interface GameSnapshot {
-  roomId: string; mode: "online" | "local"; world: { width: number; height: number };
+  roomId: string; mode: "online" | "local"; testMode?: boolean; testWave?: number; world: { width: number; height: number };
   players: PlayerSnapshot[];
   tank: { x: number; y: number; rotation: number; turretRotation: number; health: number; maxHealth: number };
   bullets: Array<{ id: number; x: number; y: number; angle: number; radius: number; weaponTier: string }>;

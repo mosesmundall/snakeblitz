@@ -35,6 +35,121 @@ let bossSpinInProgress=false,bossSpinToken=0;
 const upgradeCards=new Map<UpgradeId,UpgradeCardElements>();
 let lastTankHitSource="snake";
 
+const testModeBanner=document.createElement("div");
+testModeBanner.style.cssText="display:none;position:fixed;left:50%;top:108px;transform:translateX(-50%);z-index:10000;padding:9px 16px;border:2px solid #f3c84b;border-radius:8px;background:rgba(28,18,3,.94);color:#ffe38a;font:800 14px Arial,sans-serif;letter-spacing:.08em;pointer-events:none;box-shadow:0 4px 20px rgba(0,0,0,.45)";
+testModeBanner.textContent="TEST MODE â€¢ LEADERBOARD DISABLED";
+gameShell.append(testModeBanner);
+
+function installDeveloperTestPanel(){
+  const overlay=document.createElement("div");
+  overlay.style.cssText="display:none;position:fixed;inset:0;z-index:20000;background:rgba(0,0,0,.78);align-items:center;justify-content:center;padding:20px";
+  overlay.innerHTML=`
+    <section style="width:min(560px,94vw);background:#0b1712;border:1px solid rgba(239,197,84,.55);border-radius:14px;padding:22px;color:#eee;box-shadow:0 20px 70px rgba(0,0,0,.65);font-family:Arial,sans-serif">
+      <div style="font-size:12px;letter-spacing:.14em;color:#e4bb50;font-weight:800">DEVELOPER TOOLS</div>
+      <h2 style="margin:6px 0 4px;font-size:26px">TEST MODE</h2>
+      <p style="margin:0 0 18px;color:#aab8af;line-height:1.4">Starts directly on a selected wave. Test runs are permanently excluded from the leaderboard.</p>
+      <label style="display:block;margin:10px 0;font-weight:700">Test secret
+        <input id="dev-test-secret" type="password" autocomplete="off" style="display:block;width:100%;box-sizing:border-box;margin-top:6px;padding:10px;background:#07100d;color:#fff;border:1px solid #405148;border-radius:6px" />
+      </label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <label style="font-weight:700">Target wave
+          <input id="dev-test-wave" type="number" min="1" max="200" value="30" style="display:block;width:100%;box-sizing:border-box;margin-top:6px;padding:10px;background:#07100d;color:#fff;border:1px solid #405148;border-radius:6px" />
+        </label>
+        <label style="font-weight:700">Co-op mode
+          <select id="dev-test-mode" style="display:block;width:100%;box-sizing:border-box;margin-top:6px;padding:10px;background:#07100d;color:#fff;border:1px solid #405148;border-radius:6px">
+            <option value="online">Online â€¢ room code</option>
+            <option value="local">One device â€¢ local co-op</option>
+          </select>
+        </label>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <label style="display:block;margin:10px 0;font-weight:700">Player 1
+          <input id="dev-test-name1" maxlength="18" placeholder="Player 1" style="display:block;width:100%;box-sizing:border-box;margin-top:6px;padding:10px;background:#07100d;color:#fff;border:1px solid #405148;border-radius:6px" />
+        </label>
+        <label style="display:block;margin:10px 0;font-weight:700">Player 2 <span style="font-weight:400;color:#88958d">(local only)</span>
+          <input id="dev-test-name2" maxlength="18" placeholder="Player 2" style="display:block;width:100%;box-sizing:border-box;margin-top:6px;padding:10px;background:#07100d;color:#fff;border:1px solid #405148;border-radius:6px" />
+        </label>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:14px;margin:10px 0 16px;color:#d7dfda">
+        <label><input id="dev-test-max" type="checkbox" checked /> Max upgrades</label>
+        <label><input id="dev-test-health" type="checkbox" checked /> Full health</label>
+        <label><input id="dev-test-equipment" type="checkbox" checked /> Test equipment</label>
+      </div>
+      <div id="dev-test-error" style="min-height:20px;color:#ff8f85;font-size:13px;margin-bottom:8px"></div>
+      <div style="display:flex;gap:10px;justify-content:flex-end">
+        <button id="dev-test-cancel" type="button" style="padding:10px 16px">Cancel</button>
+        <button id="dev-test-start" type="button" style="padding:10px 16px;font-weight:800">START TEST</button>
+      </div>
+    </section>`;
+
+  document.body.append(overlay);
+  const secret=overlay.querySelector<HTMLInputElement>("#dev-test-secret")!;
+  const wave=overlay.querySelector<HTMLInputElement>("#dev-test-wave")!;
+  const coop=overlay.querySelector<HTMLSelectElement>("#dev-test-mode")!;
+  const n1=overlay.querySelector<HTMLInputElement>("#dev-test-name1")!;
+  const n2=overlay.querySelector<HTMLInputElement>("#dev-test-name2")!;
+  const max=overlay.querySelector<HTMLInputElement>("#dev-test-max")!;
+  const health=overlay.querySelector<HTMLInputElement>("#dev-test-health")!;
+  const equipment=overlay.querySelector<HTMLInputElement>("#dev-test-equipment")!;
+  const error=overlay.querySelector<HTMLElement>("#dev-test-error")!;
+  const start=overlay.querySelector<HTMLButtonElement>("#dev-test-start")!;
+  const cancel=overlay.querySelector<HTMLButtonElement>("#dev-test-cancel")!;
+
+  const close=()=>{overlay.style.display="none";error.textContent="";};
+  const open=()=>{
+    n1.value=nameInput.value.trim()||localStorage.getItem("snakeBlitzName")||"Tester 1";
+    n2.value=localName2.value.trim()||"Tester 2";
+    overlay.style.display="flex";
+    window.setTimeout(()=>secret.focus(),0);
+  };
+
+  cancel.onclick=close;
+  overlay.addEventListener("click",event=>{if(event.target===overlay)close();});
+  window.addEventListener("keydown",event=>{
+    if(event.ctrlKey&&event.shiftKey&&event.code==="F10"){
+      event.preventDefault();
+      if(!lobby.classList.contains("hidden"))open();
+      return;
+    }
+    if(event.key==="Escape"&&overlay.style.display==="flex")close();
+  });
+
+  start.onclick=async()=>{
+    const target=Math.max(1,Math.min(200,Math.floor(Number(wave.value)||1)));
+    const mode=coop.value==="local"?"local":"online";
+    const player1=n1.value.trim().slice(0,18);
+    const player2=n2.value.trim().slice(0,18);
+    const suppliedSecret=secret.value.trim();
+    if(!suppliedSecret){error.textContent="Enter the server test secret.";return;}
+    if(!player1){error.textContent="Enter Player 1 name.";return;}
+    if(mode==="local"&&!player2){error.textContent="Enter Player 2 name for one-device co-op.";return;}
+
+    start.disabled=true;
+    error.textContent="";
+    const test={secret:suppliedSecret,wave:target,maxUpgrades:max.checked,fullHealth:health.checked,testEquipment:equipment.checked};
+    try{
+      let roomId="";
+      if(mode==="local"){
+        localName1.value=player1;localName2.value=player2;
+        roomId=await network.createLocalGame(player1,player2,test);
+      }else{
+        nameInput.value=player1;
+        localStorage.setItem("snakeBlitzName",player1);
+        roomId=await network.createGame(player1,test);
+      }
+      close();
+      enterGame();
+      showBanner(mode==="online"?`TEST MODE â€¢ WAVE ${target} â€¢ ROOM ${roomId} â€¢ SEND CODE TO PLAYER 2`:`TEST MODE â€¢ WAVE ${target} â€¢ LOCAL CO-OP`,4200);
+    }catch(e){
+      const message=e instanceof Error?e.message:String(e);
+      error.textContent=message||"Could not start test mode.";
+    }finally{
+      start.disabled=false;
+    }
+  };
+}
+installDeveloperTestPanel();
+
 nameInput.value=localStorage.getItem("snakeBlitzName")??localStorage.getItem("snakeTankName")??"";
 localName1.value="";localName2.value="";
 codeInput.addEventListener("input",()=>codeInput.value=codeInput.value.toUpperCase().replace(/[^A-Z2-9]/g,"").slice(0,4));
@@ -78,6 +193,8 @@ network.addEventListener("snapshot",e=>{
   // Network snapshots can arrive faster than the DOM needs to repaint. Batching
   // HUD/shop work to ~10 Hz cuts layout/style churn without changing gameplay.
   const now=performance.now(),phaseChanged=s.phase!==lastUiPhase;
+  testModeBanner.style.display=s.testMode?"block":"none";
+  if(s.testMode)testModeBanner.textContent=`TEST MODE â€¢ WAVE ${s.wave||s.testWave||1} â€¢ LEADERBOARD DISABLED`;
   if(phaseChanged||now-lastUiUpdateAt>=95){lastUiUpdateAt=now;lastUiPhase=s.phase;updateHud(s);updateShop(s);updateBossReward(s);}
 });
 network.addEventListener("roles_assigned",()=>showBanner("STARTING ROLES RANDOMISED",1800));
@@ -129,12 +246,13 @@ network.addEventListener("boss_reward",e=>{
   window.setTimeout(finish,2350);
 });network.addEventListener("boost_used",e=>{const d=(e as CustomEvent<any>).detail;showBanner(`${d.automatic?"AUTO-":""}${d.name.toUpperCase()} ACTIVATED`,1800);});
 network.addEventListener("tank_hit",e=>{lastTankHitSource=String((e as CustomEvent<any>).detail?.source??"snake");});
+network.addEventListener("test_boss_hp_increase",e=>{const d=(e as CustomEvent<any>).detail;showBanner(`TEST DIAGNOSTIC â€¢ BOSS HP INCREASED ${Math.round(d.previous)} â†’ ${Math.round(d.hp)}`,4200);console.warn("Snake Blitz test boss HP increase",d);});
 network.addEventListener("game_over",e=>{
   shopOverlay.classList.add("hidden");bossWheel.classList.add("hidden");
   const d=(e as CustomEvent<any>).detail;
   resultWave.textContent=String(d.wave);resultScore.textContent=d.score.toLocaleString();resultCash.textContent=`$${(d.cashCollected??d.cash).toLocaleString()}`;resultKills.textContent=d.kills.toLocaleString();resultHeadshots.textContent=d.headshots.toLocaleString();
   deathQuip.textContent=buildDeathQuip(latestSnapshot?.players??[],lastTankHitSource);
-  resultLeaderboardRank.textContent=d.leaderboardRank?`NEW #${d.leaderboardRank} ALL-TIME`:"";
+  resultLeaderboardRank.textContent=d.testMode?"TEST MODE â€¢ LEADERBOARD DISABLED":d.leaderboardRank?`NEW #${d.leaderboardRank} ALL-TIME`:"";
   deathPopupMessage.textContent=buildDeathQuip(latestSnapshot?.players??[],lastTankHitSource);deathPopup.classList.remove("hidden");
   if(Array.isArray(d.leaderboard))renderLeaderboard(resultLeaderboard,d.leaderboard,d.leaderboardRank??null);else void loadLeaderboard(resultLeaderboard);
   setTimeout(()=>gameOver.classList.remove("hidden"),450);
@@ -221,7 +339,7 @@ function renderLeaderboard(target:HTMLElement,entries:LeaderboardEntry[],highlig
     row.append(rank,team,wave,score);target.append(row);
   });
 }
-async function returnToHomepage(){deathPopup.classList.add("hidden");
+async function returnToHomepage(){deathPopup.classList.add("hidden");testModeBanner.style.display="none";
   gameOver.classList.add("hidden");shopOverlay.classList.add("hidden");bossWheel.classList.add("hidden");leaderboardOverlay.classList.add("hidden");eventBanner.classList.add("hidden");waitingBanner.classList.add("hidden");
   audio.setEngineMotion(0,0,false);
   await network.leaveGame();

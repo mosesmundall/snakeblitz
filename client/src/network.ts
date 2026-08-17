@@ -11,6 +11,26 @@ function defaultServerUrl() {
 
 type ConnectionState = "idle" | "connected" | "reconnecting" | "left";
 
+export interface TestLaunchOptions {
+  secret: string;
+  wave: number;
+  maxUpgrades: boolean;
+  fullHealth: boolean;
+  testEquipment: boolean;
+}
+
+function testRoomPayload(test?:TestLaunchOptions){
+  if(!test)return {};
+  return {
+    testMode:true,
+    testSecret:test.secret,
+    testWave:test.wave,
+    testMaxUpgrades:test.maxUpgrades,
+    testFullHealth:test.fullHealth,
+    testEquipment:test.testEquipment,
+  };
+}
+
 export class GameNetwork extends EventTarget {
   readonly serverUrl = defaultServerUrl();
   readonly client = new Client(this.serverUrl);
@@ -31,12 +51,12 @@ export class GameNetwork extends EventTarget {
     },500);
   }
 
-  async createGame(name: string) {
-    const room = await this.client.create("snake_blitz", { mode: "online", name });
+  async createGame(name: string, test?:TestLaunchOptions) {
+    const room = await this.client.create("snake_blitz", { mode: "online", name, ...testRoomPayload(test) });
     this.attach(room); return room.roomId;
   }
-  async createLocalGame(name1: string, name2: string) {
-    const room = await this.client.create("snake_blitz", { mode: "local", name1, name2 });
+  async createLocalGame(name1: string, name2: string, test?:TestLaunchOptions) {
+    const room = await this.client.create("snake_blitz", { mode: "local", name1, name2, ...testRoomPayload(test) });
     this.attach(room); return room.roomId;
   }
   async joinGame(roomCode: string, name: string) {
@@ -78,7 +98,7 @@ export class GameNetwork extends EventTarget {
       if(this.staleNotified){this.staleNotified=false;this.dispatchEvent(new Event("connection_recovered"));}
       this.dispatchEvent(new CustomEvent("snapshot", { detail: snapshot }));
     });
-    const passthrough = ["shot_fx","impact_fx","hit_fx","snake_death","explosion_fx","tank_hit","cash_pickup","roles_assigned","roles_swapped","wave_complete","wave_start","game_over","upgrade_purchased","repair_purchased","purchase_denied","shop_ready_changed","boss_phase","boss_defeated","boss_reward","boost_used","boost_denied","venom_shot","connection_status"];
+    const passthrough = ["shot_fx","impact_fx","hit_fx","snake_death","explosion_fx","tank_hit","cash_pickup","roles_assigned","roles_swapped","wave_complete","wave_start","game_over","upgrade_purchased","repair_purchased","purchase_denied","shop_ready_changed","boss_phase","boss_defeated","boss_reward","boost_used","boost_denied","venom_shot","connection_status","test_boss_hp_increase"];
     for (const name of passthrough) room.onMessage(name, (payload: any) => this.dispatchEvent(new CustomEvent(name, { detail: payload })));
     room.onDrop((code:number)=>{this.connectionState="reconnecting";this.dispatchEvent(new CustomEvent("connection_drop",{detail:{code}}));});
     room.onReconnect(()=>{this.connectionState="connected";this.sessionId=room.sessionId;this.lastSnapshotAt=performance.now();this.staleNotified=false;this.dispatchEvent(new Event("reconnected"));});
